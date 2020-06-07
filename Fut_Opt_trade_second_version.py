@@ -41,6 +41,8 @@ class trade_ES():
         self.Buy = True
         self.Sell = False
         self.ib.positionEvent += self.order_verify
+        self.waitTimeInSeconds = 120 
+        self.tradeTime = 0
 
     def run(self):
 
@@ -109,15 +111,29 @@ class trade_ES():
         ES_df['roll_max_vol'] = ES_df['volume'].rolling(20).max()
         ES_df.dropna(inplace=True)
         self.loop_function(ES_df)
+        
+    def placeOrder(self, contract, order):
+        
+        trade = self.ib.placeOrder(contract, order)
+        tradeTime = datetime.datetime.now()
+        return([trade, contract, tradeTime])
 
     def sell(self, contract, position):
+        
         self.ib.qualifyContracts(contract)
         if position.position>0:
             order = 'Sell'
         else:
             order = 'Buy'
+
         marketorder = MarketOrder(order, abs(position.position))
-        marketTrade = self.ib.placeOrder(contract, marketorder)
+
+        if self.tradeTime!=0:
+            timeDelta = datetime.datetime.now() - self.tradeTime
+            if timeDelta.seconds > self.waitTimeInSeconds:
+                marketTrade, contract, self.tradeTime = self.placeOrder(contract, marketorder)
+        else:
+            marketTrade, contract, tradeTime = self.placeOrder(contract, marketorder)
         condition = marketTrade.isDone
         timeout = 20
         for c in self.ib.loopUntil(condition=condition, timeout=timeout):
@@ -132,7 +148,12 @@ class trade_ES():
     def buy(self, contract):
         self.ib.qualifyContracts(contract)
         marketorder = MarketOrder('Buy', 1)
-        marketTrade = self.ib.placeOrder(contract, marketorder)
+        if self.tradeTime!=0:
+            timeDelta = datetime.datetime.now() - self.tradeTime
+            if timeDelta.seconds > self.waitTimeInSeconds:
+                marketTrade, contract, self.tradeTime = self.placeOrder(contract, marketorder)
+        else:
+            marketTrade, contract, tradeTime = self.placeOrder(contract, marketorder)
         condition = marketTrade.isDone
         timeout = 10
         for c in self.ib.loopUntil(condition=condition, timeout=timeout):
