@@ -206,7 +206,7 @@ class trade_ES():
                 self.tickers_signal = "Hold"
                 positions = self.ib.positions()
                 for position in positions:
-                    if position.contract.right == 'C':
+                    if position.contract.right == 'P':
                         self.sell(position.contract, position)
                         return
                 
@@ -216,14 +216,15 @@ class trade_ES():
                     df["volume"].iloc[self.i] > df["roll_max_vol"].iloc[self.i - 1] and df['RSI'].iloc[self.i] < 70 \
                     and df['macd'].iloc[self.i] < df['macdsignal'].iloc[self.i] and self.Sell and not self.Buy:
                 self.tickers_signal = "Sell"
+                print('sell')
                 positions = self.ib.positions()
                 for position in positions:
-                    if position.contract.right == 'C':
+                    if position.contract.right == 'P':
                         self.sell(position.contract, position)
                         return
                     
                     
-                self.option['put'] = self.get_contract(right="P", net_liquidation=2000)
+                self.option['put'] = self.get_contract(right="C", net_liquidation=2000)
                 self.buy(self.option['put'])
 
             elif not self.Sell and self.Buy:
@@ -235,9 +236,10 @@ class trade_ES():
             print('SELL SIGNAL')
             if df["close"].iloc[self.i] < df["close"].iloc[self.i - 1] + (0.75 * df["ATR"].iloc[self.i - 1]) and self.Sell and not self.Buy:
                 self.tickers_signal = "Hold"
+                print('sell')
                 positions = self.ib.positions()
                 for position in positions:
-                    if position.contract.right == 'P':
+                    if position.contract.right == 'C':
                         self.sell(position.contract, position)
                         return
 
@@ -246,14 +248,15 @@ class trade_ES():
                     df["volume"].iloc[self.i] > df["roll_max_vol"].iloc[self.i - 1] and df['RSI'].iloc[self.i] > 30 \
                     and df['macd'].iloc[self.i] > df['macdsignal'].iloc[self.i] and self.Sell and not self.Buy:
                 self.tickers_signal = "Buy"
+                print('sell')
                 positions = self.ib.positions()
                 for position in positions:
-                    if position.contract.right == 'P':
+                    if position.contract.right == 'C':
                         self.sell(position.contract, position)
                         return
 
 
-                self.option['call'] = self.get_contract(right="C", net_liquidation=2000)
+                self.option['call'] = self.get_contract(right="P", net_liquidation=2000)
                 self.buy(self.option['call'])
 
 
