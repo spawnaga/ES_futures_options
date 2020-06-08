@@ -226,12 +226,9 @@ class trade_ES():
                 for position in positions:
                     if position.contract.right == 'P':
                         self.sell(position.contract, position)
+                        self.tickers_signal == "Buy"
                         return
-                    
-                    
-                self.option['put'] = self.get_contract(right="P", net_liquidation=2000)
-                self.buy(self.option['put'])
-                self.tickers_signal = "Hold"
+                
 
             else:
                 if len(self.ib.positions())==0:            
@@ -265,11 +262,8 @@ class trade_ES():
                 for position in positions:
                     if position.contract.right == 'P':
                         self.sell(position.contract, position)
+                        self.tickers_signal == "Sell"
                         return
-
-                self.option['call'] = self.get_contract(right="C", net_liquidation=2000)
-                self.buy(self.option['call'])
-                self.tickers_signal = "Hold"
 
             else:
                 if len(self.ib.positions())==0:   
