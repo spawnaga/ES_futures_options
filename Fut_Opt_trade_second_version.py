@@ -41,7 +41,7 @@ class trade_ES():
         self.Buy = True
         self.Sell = False
         self.ib.positionEvent += self.order_verify
-        self.waitTimeInSeconds = 180 
+        self.waitTimeInSeconds = 220
         self.tradeTime = 0
 
     def run(self):
@@ -132,8 +132,10 @@ class trade_ES():
             timeDelta = datetime.datetime.now() - self.tradeTime
             if timeDelta.seconds > self.waitTimeInSeconds:
                 marketTrade, contract, self.tradeTime = self.placeOrder(contract, marketorder)
+                print(f'self.tradeTime = {self.tradeTime}, timeDelta = {timeDelta}' )
         else:
             marketTrade, contract, tradeTime = self.placeOrder(contract, marketorder)
+            print(f'zero / self.tradeTime = {self.tradeTime}, timeDelta = {timeDelta}' )
         condition = marketTrade.isDone
         timeout = 20
         for c in self.ib.loopUntil(condition=condition, timeout=timeout):
@@ -152,8 +154,10 @@ class trade_ES():
             timeDelta = datetime.datetime.now() - self.tradeTime
             if timeDelta.seconds > self.waitTimeInSeconds:
                 marketTrade, contract, self.tradeTime = self.placeOrder(contract, marketorder)
+                print(f'self.tradeTime = {self.tradeTime}, timeDelta = {timeDelta}' )
         else:
             marketTrade, contract, tradeTime = self.placeOrder(contract, marketorder)
+            print(f'zero / self.tradeTime = {self.tradeTime}, timeDelta = {timeDelta}' )
         condition = marketTrade.isDone
         timeout = 10
         for c in self.ib.loopUntil(condition=condition, timeout=timeout):
