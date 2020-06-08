@@ -198,12 +198,17 @@ class trade_ES():
                     and df['macd'].iloc[self.i] < df['macdsignal'].iloc[self.i]:
                 self.tickers_signal = "Sell"
                 return
+            
+            else:
+                self.tickers_signal = "Hold"
+                return
 
 
         elif self.tickers_signal == "Buy":
             print('BUY SIGNAL')
-            if df["close"].iloc[self.i] > df["close"].iloc[self.i - 1] - (0.75 * df["ATR"].iloc[self.i - 1]) and self.Sell and not self.Buy:
-                self.tickers_signal = "Hold"
+            if df["close"].iloc[self.i] > df["close"].iloc[self.i - 1] - (0.75 * df["ATR"].iloc[self.i - 1]):
+                print(f'{df["close"].iloc[self.i]} > {df["close"].iloc[self.i - 1] - (0.75 * df["ATR"].iloc[self.i - 1])}')
+                print('first buy condition')
                 positions = self.ib.positions()
                 for position in positions:
                     if position.contract.right == 'P':
@@ -214,7 +219,7 @@ class trade_ES():
 
             elif df["low"].iloc[self.i] <= df["roll_min_cp"].iloc[self.i] and \
                     df["volume"].iloc[self.i] > df["roll_max_vol"].iloc[self.i - 1] and df['RSI'].iloc[self.i] < 70 \
-                    and df['macd'].iloc[self.i] < df['macdsignal'].iloc[self.i] and self.Sell and not self.Buy:
+                    and df['macd'].iloc[self.i] < df['macdsignal'].iloc[self.i]:
                 self.tickers_signal = "Sell"
                 print('sell')
                 positions = self.ib.positions()
@@ -224,45 +229,59 @@ class trade_ES():
                         return
                     
                     
-                self.option['put'] = self.get_contract(right="C", net_liquidation=2000)
+                self.option['put'] = self.get_contract(right="P", net_liquidation=2000)
                 self.buy(self.option['put'])
+                self.tickers_signal = "Hold"
 
-            elif not self.Sell and self.Buy:
-                self.option['call'] = self.get_contract(right="C", net_liquidation=2000)
-                self.buy(self.option['call'])
+
+            positions = self.ib.positions()
+            for position in positions:
+                if position.position== 0:               
+                    self.option['call'] = self.get_contract(right="C", net_liquidation=2000)
+                    self.buy(self.option['call'])
+                    self.tickers_signal = "Hold"
+                else:
+                    self.tickers_signal = "Hold"
 
 
         elif self.tickers_signal == "Sell":
             print('SELL SIGNAL')
-            if df["close"].iloc[self.i] < df["close"].iloc[self.i - 1] + (0.75 * df["ATR"].iloc[self.i - 1]) and self.Sell and not self.Buy:
-                self.tickers_signal = "Hold"
+            if df["close"].iloc[self.i] < df["close"].iloc[self.i - 1] + (0.75 * df["ATR"].iloc[self.i - 1]) :
+                print('first sell condition')
+                print(f'{df["close"].iloc[self.i]} < {df["close"].iloc[self.i - 1] - (0.75 * df["ATR"].iloc[self.i - 1])}')
                 print('sell')
                 positions = self.ib.positions()
                 for position in positions:
                     if position.contract.right == 'C':
                         self.sell(position.contract, position)
                         return
+            
 
 
             elif df["high"].iloc[self.i] >= df["roll_max_cp"].iloc[self.i] and \
                     df["volume"].iloc[self.i] > df["roll_max_vol"].iloc[self.i - 1] and df['RSI'].iloc[self.i] > 30 \
-                    and df['macd'].iloc[self.i] > df['macdsignal'].iloc[self.i] and self.Sell and not self.Buy:
+                    and df['macd'].iloc[self.i] > df['macdsignal'].iloc[self.i] :
                 self.tickers_signal = "Buy"
                 print('sell')
                 positions = self.ib.positions()
                 for position in positions:
-                    if position.contract.right == 'C':
+                    if position.contract.right == 'P':
                         self.sell(position.contract, position)
                         return
 
-
-                self.option['call'] = self.get_contract(right="P", net_liquidation=2000)
+                self.option['call'] = self.get_contract(right="C", net_liquidation=2000)
                 self.buy(self.option['call'])
+                self.tickers_signal = "Hold"
 
 
-            elif not self.Sell and self.Buy:
-                self.option['put'] = self.get_contract(right="P", net_liquidation=2000)
-                self.buy(self.option['put'])
+            positions = self.ib.positions()
+            for position in positions:
+                if position.position == 0:    
+                    self.option['put'] = self.get_contract(right="P", net_liquidation=2000)
+                    self.buy(self.option['put'])
+                    self.tickers_signal = "Hold"
+                else:
+                    self.tickers_signal = "Hold"
 
 
 
