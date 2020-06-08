@@ -229,9 +229,9 @@ class trade_ES():
                 print('sell')
                 positions = self.ib.positions()
                 for position in positions:
-                    if position.contract.right == 'P':
+                    if position.contract.right == 'C':
                         self.sell(position.contract, position)
-                        self.tickers_signal == "Buy"
+                        self.tickers_signal == "Sell"
                         return
                 
 
@@ -268,7 +268,7 @@ class trade_ES():
                 for position in positions:
                     if position.contract.right == 'P':
                         self.sell(position.contract, position)
-                        self.tickers_signal == "Sell"
+                        self.tickers_signal == "Buy"
                         return
 
             else:
