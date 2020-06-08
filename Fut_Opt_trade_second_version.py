@@ -206,7 +206,7 @@ class trade_ES():
 
         elif self.tickers_signal == "Buy":
             print('BUY SIGNAL')
-            if df["close"].iloc[self.i] > df["close"].iloc[self.i - 1] - (0.75 * df["ATR"].iloc[self.i - 1]):
+            if df["close"].iloc[self.i] > df["close"].iloc[self.i - 1] - (0.75 * df["ATR"].iloc[self.i - 1]) and len(self.ib.positions())!=0:
                 print(f'{df["close"].iloc[self.i]} > {df["close"].iloc[self.i - 1] - (0.75 * df["ATR"].iloc[self.i - 1])}')
                 print('first buy condition')
                 positions = self.ib.positions()
@@ -219,7 +219,7 @@ class trade_ES():
 
             elif df["low"].iloc[self.i] <= df["roll_min_cp"].iloc[self.i] and \
                     df["volume"].iloc[self.i] > df["roll_max_vol"].iloc[self.i - 1] and df['RSI'].iloc[self.i] < 70 \
-                    and df['macd'].iloc[self.i] < df['macdsignal'].iloc[self.i]:
+                    and df['macd'].iloc[self.i] < df['macdsignal'].iloc[self.i] and len(self.ib.positions())!=0:
                 self.tickers_signal = "Sell"
                 print('sell')
                 positions = self.ib.positions()
@@ -246,7 +246,7 @@ class trade_ES():
 
         elif self.tickers_signal == "Sell":
             print('SELL SIGNAL')
-            if df["close"].iloc[self.i] < df["close"].iloc[self.i - 1] + (0.75 * df["ATR"].iloc[self.i - 1]) :
+            if df["close"].iloc[self.i] < df["close"].iloc[self.i - 1] + (0.75 * df["ATR"].iloc[self.i - 1]) and len(self.ib.positions())!=0:
                 print('first sell condition')
                 print(f'{df["close"].iloc[self.i]} < {df["close"].iloc[self.i - 1] - (0.75 * df["ATR"].iloc[self.i - 1])}')
                 print('sell')
@@ -260,7 +260,7 @@ class trade_ES():
 
             elif df["high"].iloc[self.i] >= df["roll_max_cp"].iloc[self.i] and \
                     df["volume"].iloc[self.i] > df["roll_max_vol"].iloc[self.i - 1] and df['RSI'].iloc[self.i] > 30 \
-                    and df['macd'].iloc[self.i] > df['macdsignal'].iloc[self.i] :
+                    and df['macd'].iloc[self.i] > df['macdsignal'].iloc[self.i] and len(self.ib.positions())!=0:
                 self.tickers_signal = "Buy"
                 print('sell')
                 positions = self.ib.positions()
