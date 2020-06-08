@@ -213,6 +213,7 @@ class trade_ES():
                 for position in positions:
                     if position.contract.right == 'C':
                         self.sell(position.contract, position)
+                        self.tickers_signal = "Hold"
                         return
                 
 
@@ -249,6 +250,7 @@ class trade_ES():
                 for position in positions:
                     if position.contract.right == 'P':
                         self.sell(position.contract, position)
+                        self.tickers_signal = "Hold"
                         return
             
 
