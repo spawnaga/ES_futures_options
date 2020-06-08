@@ -41,7 +41,7 @@ class trade_ES():
         self.Buy = True
         self.Sell = False
         self.ib.positionEvent += self.order_verify
-        self.waitTimeInSeconds = 120 
+        self.waitTimeInSeconds = 180 
         self.tradeTime = 0
 
     def run(self):
@@ -211,7 +211,7 @@ class trade_ES():
                 print('first buy condition')
                 positions = self.ib.positions()
                 for position in positions:
-                    if position.contract.right == 'P':
+                    if position.contract.right == 'C':
                         self.sell(position.contract, position)
                         return
                 
@@ -233,10 +233,8 @@ class trade_ES():
                 self.buy(self.option['put'])
                 self.tickers_signal = "Hold"
 
-
-            positions = self.ib.positions()
-            for position in positions:
-                if position.position== 0:               
+            else:
+                if len(self.ib.positions())==0:            
                     self.option['call'] = self.get_contract(right="C", net_liquidation=2000)
                     self.buy(self.option['call'])
                     self.tickers_signal = "Hold"
@@ -252,7 +250,7 @@ class trade_ES():
                 print('sell')
                 positions = self.ib.positions()
                 for position in positions:
-                    if position.contract.right == 'C':
+                    if position.contract.right == 'P':
                         self.sell(position.contract, position)
                         return
             
@@ -273,10 +271,8 @@ class trade_ES():
                 self.buy(self.option['call'])
                 self.tickers_signal = "Hold"
 
-
-            positions = self.ib.positions()
-            for position in positions:
-                if position.position == 0:    
+            else:
+                if len(self.ib.positions())==0:   
                     self.option['put'] = self.get_contract(right="P", net_liquidation=2000)
                     self.buy(self.option['put'])
                     self.tickers_signal = "Hold"
