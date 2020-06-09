@@ -67,17 +67,20 @@ def maybe_make_dir(directory):
 
 
 
-def mlp(input_dim, n_action, n_hidden_layers=3, hidden_dim=32):
+def mlp(input_dim, n_action, n_hidden_layers=3, hidden_dim=25):
   """ A multi-layer perceptron """
 
   # input layer
-  i = Input(shape=(input_dim,))
+  i = Input(shape=(input_dim,1))
   x = i
 
   # hidden layers
   for _ in range(n_hidden_layers):
-    x = Dense(hidden_dim, activation='relu')(x)
-  
+    x = Dropout(0.2)(x)
+    print(x.shape)
+    x = LSTM(hidden_dim, return_sequences = True)(x)
+
+  x = GlobalAveragePooling1D()(x)
   # final layer
   x = Dense(n_action)(x)
 
