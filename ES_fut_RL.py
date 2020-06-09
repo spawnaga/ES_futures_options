@@ -474,9 +474,9 @@ def play_one_episode(agent, env, is_train):
 if __name__ == '__main__':
 
     # config
-    models_folder = 'rl_trader_models'
-    rewards_folder = 'rl_trader_rewards'
-    num_episodes = 1000
+    models_folder = '/content/gdrive/My Drive/Colab Notebooks/rl_trader_models'
+    rewards_folder = '/content/gdrive/My Drive/Colab Notebooks/rl_trader_rewards'
+    num_episodes = 100
     batch_size = 64
     initial_investment = 20000
     
@@ -485,13 +485,11 @@ if __name__ == '__main__':
     maybe_make_dir(models_folder)
     maybe_make_dir(rewards_folder)
     
-    res=get_data()
-    data = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000))),res.option_history(res.get_contract('P', 2000)))
-    data.to_csv(r'D:\new_data.csv')
+    data = pd.read_csv('/content/new_data.csv', index_col='date')
     data = data.drop(columns=['average','barCount', 'MA_200', 'MA_21', 'MA_9' ])
     n_timesteps = len(data)
     n_stocks = 2
-    n_train = int(n_timesteps * 2 / 3)
+    n_train = int(n_timesteps)
     
     train_data = data
     test_data = data[n_train:]
@@ -502,6 +500,19 @@ if __name__ == '__main__':
     agent = DQNAgent(state_size, action_size)
     scaler = get_scaler(env)
     portfolio_value = []
+
+    # store the final value of the portfolio (end of episode)
+    portfolio_value = []
+
+    # play the game num_episodes times
+    for e in range(num_episodes):
+      t0 = datetime.now()
+      val = play_one_episode(agent, env, args)
+      dt = datetime.now() - t0
+      print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
+      portfolio_value.append(val) # append episode end portfolio value
+
+      
     # save the weights when we are done
     if args == 'train':
       # save the DQN
@@ -511,35 +522,25 @@ if __name__ == '__main__':
       with open(f'{models_folder}/scaler.pkl', 'wb') as f:
         pickle.dump(scaler, f)
     
-    
-    # # save portfolio value for each episode
+    # save portfolio value for each episode
     np.save(f'{rewards_folder}.npy', portfolio_value)
+    
+    
 
-    args = 'test'
-    # store the final value of the portfolio (end of episode)
-    portfolio_value = []
     
-    if args == 'test':
-      # then load the previous scaler
-      with open(f'{models_folder}/scaler.pkl', 'rb') as f:
-        scaler = pickle.load(f)
+    # if args == 'test':
+    #   # then load the previous scaler
+    #   with open(f'{models_folder}/scaler.pkl', 'rb') as f:
+    #     scaler = pickle.load(f)
     
-      # remake the env with test data
-      env = MultiStockEnv(test_data, initial_investment)
+    #   # remake the env with test data
+    #   env = MultiStockEnv(test_data, initial_investment)
     
-      # make sure epsilon is not 1!
-      # no need to run multiple episodes if epsilon = 0, it's deterministic
-      agent.epsilon = 0.01
+    #   # make sure epsilon is not 1!
+    #   # no need to run multiple episodes if epsilon = 0, it's deterministic
+    #   agent.epsilon = 0.01
     
-      # load trained weights
-      agent.load(f'{models_folder}/dqn.h5')
-    
-    # play the game num_episodes times
-    for e in range(num_episodes):
-      t0 = datetime.now()
-      val = play_one_episode(agent, env, args)
-      dt = datetime.now() - t0
-      print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
-      portfolio_value.append(val) # append episode end portfolio value
+    #   # load trained weights
+    #   agent.load(f'{models_folder}/dqn.h5')
 
 
