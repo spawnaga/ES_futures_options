@@ -16,7 +16,7 @@ import talib as ta
 
 
 from tensorflow.keras.models import Model, load_model
-from tensorflow.keras.layers import Dense, Input, Dropout
+from tensorflow.keras.layers import Dense, Input, Dropout, LSTM, GlobalAveragePooling1D
 from tensorflow.keras.optimizers import Adam
 
 from datetime import datetime, timedelta
@@ -33,7 +33,7 @@ from sklearn.preprocessing import StandardScaler
 nest_asyncio.apply()
 ib = IB()
 ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10,1000))
-ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200619', exchange='GLOBEX',
+ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
                             currency='USD')
 ib.qualifyContracts(ES)
 endDateTime=''
@@ -66,32 +66,6 @@ def maybe_make_dir(directory):
 
 
 
-
-def mlp(input_dim, n_action, n_hidden_layers=3, hidden_dim=25):
-  """ A multi-layer perceptron """
-
-  # input layer
-  i = Input(shape=(input_dim,1))
-  x = i
-
-  # hidden layers
-  for _ in range(n_hidden_layers):
-    x = Dropout(0.2)(x)
-    print(x.shape)
-    x = LSTM(hidden_dim, return_sequences = True)(x)
-
-  x = GlobalAveragePooling1D()(x)
-  # final layer
-  x = Dense(n_action)(x)
-
-  # make the model
-  model = Model(i, x)
-
-  model.compile(loss='mse', optimizer='adam')
-  print((model.summary()))
-  return model
-
-
 class get_data:
         
     def next_exp_weekday(self):
@@ -110,7 +84,7 @@ class get_data:
         return date_to_return.strftime('%Y%m%d')
     
     def get_strikes_and_expiration(self):
-        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200619', exchange='GLOBEX',
+        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
                                 currency='USD')
         ib.qualifyContracts(ES)
         expiration = self.next_weekday(datetime.today(), self.next_exp_weekday())
@@ -139,7 +113,7 @@ class get_data:
     
     
     def ES(self):
-        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200619', exchange='GLOBEX',
+        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
                                 currency='USD')
         ib.qualifyContracts(ES)
         ES_df = ib.reqHistoricalData(contract=ES, endDateTime=endDateTime, durationStr=No_days,
@@ -211,26 +185,29 @@ def maybe_make_dir(directory):
 
 
 def mlp(input_dim, n_action, n_hidden_layers=3, hidden_dim=25):
-      """ A multi-layer perceptron """
-    
-      # input layer
-      i = Input(shape=(input_dim,))
-      x = i
-    
-      # hidden layers
-      for _ in range(n_hidden_layers):
-            x = Dropout(0.2)(x)
-            x = Dense(hidden_dim, activation='relu')(x)
-      
-      # final layer
-      x = Dense(n_action)(x)
-    
-      # make the model
-      model = Model(i, x)
-    
-      model.compile(loss='mse', optimizer='adam')
-      print((model.summary()))
-      return model
+    """ A multi-layer perceptron """
+     
+    # input layer
+    i = Input(shape=(input_dim,1))
+    x = i
+     
+    # hidden layers
+    for _ in range(n_hidden_layers):
+      x = Dropout(0.2)(x)
+      print(x.shape)
+      x = LSTM(hidden_dim, return_sequences = True)(x)
+     
+    x = GlobalAveragePooling1D()(x)
+    # final layer
+    x = Dense(n_action)(x)
+     
+    # make the model
+    model = Model(i, x)
+     
+    model.compile(loss='mse', optimizer='adam')
+    print((model.summary()))
+    return model
+
 
 class ReplayBuffer:
       def __init__(self, obs_dim, act_dim, size):
@@ -457,38 +434,40 @@ class DQNAgent(object):
     def save(self, name):
         self.model.save_weights(name)
 
-def play_one_episode(agent, env, is_train):
-      # note: after transforming states are already 1xD
-      state = env.reset()
-      state = scaler.transform([state])
-      done = False
-    
-      while not done:
+def play_one_episode(agent, env):
+    # note: after transforming states are already 1xD
+    state = env.reset()
+    state = scaler.transform([state])
+    done = False
+      
+    while not done:
         action = agent.act(state)
         next_state, reward, done, info = env.step(action)
         next_state = scaler.transform([next_state])
-        if is_train == 'train':
-            agent.update_replay_memory(state, action, reward, next_state, done)
-            agent.replay(batch_size)
+        
+        agent.update_replay_memory(state, action, reward, next_state, done)
+        agent.replay(batch_size)
         state = next_state
     
-      return info['cur_val']
+    return info['cur_val']
 
 if __name__ == '__main__':
 
     # config
-    models_folder = '/content/gdrive/My Drive/Colab Notebooks/rl_trader_models'
-    rewards_folder = '/content/gdrive/My Drive/Colab Notebooks/rl_trader_rewards'
+    models_folder = './rl_trader_models'
+    rewards_folder = './rl_trader_rewards'
     num_episodes = 100
-    batch_size = 64
+    batch_size = 4326
     initial_investment = 20000
-    
+
     args= 'train'
     
     maybe_make_dir(models_folder)
     maybe_make_dir(rewards_folder)
-    
-    data = pd.read_csv('/content/new_data.csv', index_col='date')
+    res=get_data()
+    data = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000))),res.option_history(res.get_contract('P', 2000)))
+    data.to_csv('./new_data.csv')
+
     data = data.drop(columns=['average','barCount', 'MA_200', 'MA_21', 'MA_9' ])
     n_timesteps = len(data)
     n_stocks = 2
@@ -502,7 +481,7 @@ if __name__ == '__main__':
     action_size = len(env.action_space)
     agent = DQNAgent(state_size, action_size)
     scaler = get_scaler(env)
-    portfolio_value = []
+
 
     # store the final value of the portfolio (end of episode)
     portfolio_value = []
@@ -510,15 +489,13 @@ if __name__ == '__main__':
     # play the game num_episodes times
     for e in range(num_episodes):
       t0 = datetime.now()
-      val = play_one_episode(agent, env, args)
+      val = play_one_episode(agent, env)
       dt = datetime.now() - t0
       print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
       portfolio_value.append(val) # append episode end portfolio value
 
       
-    # save the weights when we are done
-    if args == 'train':
-      # save the DQN
+
       agent.save(f'{models_folder}/dqn.h5')
     
       # save the scaler
@@ -545,5 +522,4 @@ if __name__ == '__main__':
     
     #   # load trained weights
     #   agent.load(f'{models_folder}/dqn.h5')
-
 

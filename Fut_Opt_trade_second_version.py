@@ -9,9 +9,10 @@ import numpy as np
 from ib_insync import IB, MarketOrder, util, Future, FuturesOption
 import datetime
 import talib as ta
+import asyncio
 import nest_asyncio
 
-nest_asyncio.apply()
+
 
 
 class trade_ES():
@@ -43,16 +44,17 @@ class trade_ES():
         self.ib.positionEvent += self.order_verify
         self.waitTimeInSeconds = 220
         self.tradeTime = 0
+        self.mySemaphore = asyncio.Semaphore(1)
+        
+
+        
 
     def run(self):
+ 
+        self.make_clean_df(self.ES_df)
 
-        while self.ib.waitOnUpdate():
-            util.allowCtrlC()
-            self.ib.setCallback('error', x.checkError)
-            self.make_clean_df(self.ES_df)
 
     def next_exp_weekday(self):
-
         weekdays = {2: [6, 0], 4: [0, 1, 2], 0: [3, 4]}
         today = datetime.date.today().weekday()
         for exp, day in weekdays.items():
@@ -111,6 +113,7 @@ class trade_ES():
         ES_df['roll_max_vol'] = ES_df['volume'].rolling(20).max()
         ES_df.dropna(inplace=True)
         self.loop_function(ES_df)
+
         
     def placeOrder(self, contract, order):
         
@@ -119,7 +122,6 @@ class trade_ES():
         return([trade, contract, tradeTime])
 
     def sell(self, contract, position):
-        
         self.ib.qualifyContracts(contract)
         if position.position>0:
             order = 'Sell'
@@ -127,46 +129,18 @@ class trade_ES():
             order = 'Buy'
 
         marketorder = MarketOrder(order, abs(position.position))
-
-        if self.tradeTime!=0:
-            timeDelta = datetime.datetime.now() - self.tradeTime
-            if timeDelta.seconds > self.waitTimeInSeconds:
-                marketTrade, contract, self.tradeTime = self.placeOrder(contract, marketorder)
-                print(f'self.tradeTime = {self.tradeTime}, timeDelta = {timeDelta}' )
-        else:
-            marketTrade, contract, tradeTime = self.placeOrder(contract, marketorder)
-            print(f'zero / self.tradeTime = {self.tradeTime}, timeDelta = {timeDelta}' )
-        condition = marketTrade.isDone
-        timeout = 20
-        for c in self.ib.loopUntil(condition=condition, timeout=timeout):
-            marketorder = MarketOrder('Sell', position.position)
-            marketTrade = self.ib.placeOrder(contract, marketorder)
-
-        if not condition == 'Filled':
-            self.ib.cancelOrder(marketorder)
-            marketorder = MarketOrder('Sell', position.position)
-            marketTrade = self.ib.placeOrder(contract, marketorder)
+        marketTrade, contract, tradeTime = self.placeOrder(contract, marketorder)
+        while self.ib.position.position != 0:
+            self.ib.sleep(1)
+        self.mySemaphore.release()
+        
             
-    def buy(self, contract):
+    async def buy(self, contract):
+        await self.semaphore.acquire()
         self.ib.qualifyContracts(contract)
         marketorder = MarketOrder('Buy', 1)
-        if self.tradeTime!=0:
-            timeDelta = datetime.datetime.now() - self.tradeTime
-            if timeDelta.seconds > self.waitTimeInSeconds:
-                marketTrade, contract, self.tradeTime = self.placeOrder(contract, marketorder)
-                print(f'self.tradeTime = {self.tradeTime}, timeDelta = {timeDelta}' )
-        else:
-            marketTrade, contract, tradeTime = self.placeOrder(contract, marketorder)
-            print(f'zero / self.tradeTime = {self.tradeTime}, timeDelta = {timeDelta}' )
-        condition = marketTrade.isDone
-        timeout = 10
-        for c in self.ib.loopUntil(condition=condition, timeout=timeout):
-            marketorder = MarketOrder('Buy', 1)
-            marketTrade = self.ib.placeOrder(contract, marketorder)
-        if not condition == 'Filled':
-            self.ib.cancelOrder(marketorder)
-            marketorder = MarketOrder('Buy', 1)
-            marketTrade = self.ib.placeOrder(contract, marketorder)
+        marketTrade = self.ib.placeOrder(contract, marketorder)
+
 
     def order_verify(self, order):
         if order.position == 0.0 or order.position < 0:
@@ -183,7 +157,7 @@ class trade_ES():
 
 
     def loop_function(self, ES_df):
-
+        
         df = ES_df[
             ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol', 'EMA_9',
              'EMA_21', 'macd', 'macdsignal']]
@@ -281,6 +255,8 @@ class trade_ES():
 
 
 
+
+
     def checkError(self, errCode, errString):
         print('Error Callback', errCode, errString)
         if errCode == 2104:
@@ -293,10 +269,11 @@ class trade_ES():
 
 
 if __name__ == '__main__':
+    nest_asyncio.apply()
     ib=IB()
     x = trade_ES()
-    try:
-        while ib.waitOnUpdate():
-            x.run()
-    except Exception as error:
-        print(error)
+
+    x.run()
+
+
+        
