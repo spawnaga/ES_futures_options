@@ -359,10 +359,11 @@ class DQNAgent(object):
       self.action_size = action_size
       self.memory = ReplayBuffer(state_size, action_size, size=500)
       self.gamma = 0.95  # discount rate
-      self.epsilon = 1.0  # exploration rate
+      self.epsilon = 0.255 # exploration rate
       self.epsilon_min = 0.01
       self.epsilon_decay = 0.795
       self.model = mlp(state_size, action_size)
+      self.random_trades = 0
     
     def update_replay_memory(self, state, action, reward, next_state, done):
         self.memory.store(state, action, reward, next_state, done)
@@ -370,6 +371,7 @@ class DQNAgent(object):
     
     def act(self, state):
       if np.random.rand() <= self.epsilon:
+          self.random_trades +=1
           return np.random.choice(self.action_size)
       act_values = self.model.predict(state)
       return np.argmax(act_values[0])  # returns action
@@ -421,74 +423,81 @@ def play_one_episode(agent, env):
     state = env.reset()
     state = scaler.transform([state])
     done = False
+    agent.random_trades = 0
       
     while not done:
         action = agent.act(state)
         next_state, reward, done, info = env.step(action)
-        if float(info['cur_val']) < 20000:
-            continue
-        else:
-            next_state = scaler.transform([next_state])
-            agent.update_replay_memory(state, action, reward, next_state, done)
-            agent.replay(batch_size)
-            state = next_state
+        # if float(info['cur_val']) < 20000:
+        #     continue
+        # else:
+        next_state = scaler.transform([next_state])
+        agent.update_replay_memory(state, action, reward, next_state, done)
+        agent.replay(batch_size)
+        state = next_state
+
+
     
-    return info['cur_val'] if info['cur_val'] > 20000 else 0
+    return info['cur_val'] #if info['cur_val'] > 20000 else 0
 
 if __name__ == '__main__':
 
     # config
-    models_folder = './rl_trader_models'
-    rewards_folder = './rl_trader_rewards'
-    num_episodes = 500
+    models_folder = './rl_trader_models' #where models and scaler are saved
+    rewards_folder = './rl_trader_rewards' #where results are saved
+    num_episodes = 500 #number of loops per a cycle
     
     initial_investment = 20000
 
     
     maybe_make_dir(models_folder)
     maybe_make_dir(rewards_folder)
-
+    
     res=get_data()
     while True:
+        succeded_trades = 0 # To count percentage of success
         try:
-            data = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000))),res.option_history(res.get_contract('P', 2000)))
-            data.to_csv('./new_data.csv')
+            data = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000)))\
+                               ,res.option_history(res.get_contract('P', 2000))) #collect live data of ES with TA and options prices
+            data.to_csv('./new_data.csv') # save data incase tws goes dowen
         except:
             data=pd.read_csv('./new_data.csv',index_col='date')
-        data = data.drop(columns=['average','barCount', 'MA_200', 'MA_21', 'MA_9' ])
+        data = data.drop(columns=['average','barCount', 'MA_200', 'MA_21', 'MA_9' ]) #choose parameters to drop if not needed
         n_timesteps = len(data)
         n_stocks = 2
         n_train = int(n_timesteps)
         
         train_data = data
-        test_data = data[n_train:]
-        batch_size = len(train_data)
-        env = MultiStockEnv(train_data, initial_investment)
+        batch_size = len(train_data) #only one batch
+        env = MultiStockEnv(train_data, initial_investment) # start envirnoment
         state_size = env.state_dim
         action_size = len(env.action_space)
         agent = DQNAgent(state_size, action_size)
     #    scaler = get_scaler(env)
         with open('./rl_trader_models/scaler.pkl', 'rb') as f:
-            scaler = pickle.load(f)
-        agent.load('./rl_trader_models/dqn.h5')
-    
+            scaler = pickle.load(f) # load scaler
+        try:    
+            agent.load(f'{models_folder}/dqn.h5') # load agent
+        except Exception as error:
+            print(error)
     
         # store the final value of the portfolio (end of episode)
         portfolio_value = []
     
         # play the game num_episodes times
         for e in range(num_episodes):
-          t0 = datetime.now()
-          val = play_one_episode(agent, env)
-          if val <20000:
-              continue
-          else:
-              dt = datetime.now() - t0
-              print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
-              portfolio_value.append(val) # append episode end portfolio value
+            t0 = datetime.now()
+            val = play_one_episode(agent, env) 
+            if val >20000: # take only profitable trades
+                succeded_trades +=1
+            print(agent.random_trades)
+            dt = datetime.now() - t0
+            print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
+            portfolio_value.append(val) # append episode end portfolio value
+            
     
-          
-    
+        agent.epsilon -=0.1
+        print(f'*****Loop finished, No. of succeded trades = {succeded_trades}, percentage = {succeded_trades/num_episodes*100}%')
         agent.save(f'{models_folder}/dqn.h5')
       
         # save the scaler
@@ -496,7 +505,10 @@ if __name__ == '__main__':
           pickle.dump(scaler, f)
         
         # save portfolio value for each episode
-        np.save(f'{rewards_folder}.npy', portfolio_value)
+
+        np.save(f'{rewards_folder}/reward.npy', np.array(portfolio_value))
+        np.save(f'{rewards_folder}/succeded_trades.npy', np.array(succeded_trades))
+        np.save(f'{rewards_folder}/succeded_trades.npy', np.array(agent.random_trades))
         
         
     
