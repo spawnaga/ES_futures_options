@@ -41,24 +41,6 @@ No_days = '3 D'
 interval = '1 min'
 
 
-def get_scaler(env):
-  # return scikit-learn scaler object to scale the states
-  # Note: you could also populate the replay buffer here
-
-  states = []
-  for _ in range(env.n_step):
-    action = np.random.choice(env.action_space)
-    state, reward, done, info = env.step(action)
-    states.append(state)
-    if done:
-      break
-
-  scaler = StandardScaler()
-  scaler.fit(states)
-  return scaler
-
-
-
 
 def maybe_make_dir(directory):
   if not os.path.exists(directory):
@@ -227,7 +209,7 @@ class ReplayBuffer:
         self.ptr = (self.ptr+1) % self.max_size
         self.size = min(self.size+1, self.max_size)
     
-      def sample_batch(self, batch_size=32):
+      def sample_batch(self, batch_size=320):
         idxs = np.random.randint(0, self.size, size=batch_size)
         return dict(s=self.obs1_buf[idxs],
                     s2=self.obs2_buf[idxs],
@@ -379,7 +361,7 @@ class DQNAgent(object):
       self.gamma = 0.95  # discount rate
       self.epsilon = 1.0  # exploration rate
       self.epsilon_min = 0.01
-      self.epsilon_decay = 0.995
+      self.epsilon_decay = 0.795
       self.model = mlp(state_size, action_size)
     
     def update_replay_memory(self, state, action, reward, next_state, done):
@@ -393,7 +375,7 @@ class DQNAgent(object):
       return np.argmax(act_values[0])  # returns action
     
     
-    def replay(self, batch_size=32):
+    def replay(self, batch_size=320):
       # first check if replay buffer contains enough data
       if self.memory.size < batch_size:
           return
@@ -443,83 +425,99 @@ def play_one_episode(agent, env):
     while not done:
         action = agent.act(state)
         next_state, reward, done, info = env.step(action)
-        next_state = scaler.transform([next_state])
-        
-        agent.update_replay_memory(state, action, reward, next_state, done)
-        agent.replay(batch_size)
-        state = next_state
+        if float(info['cur_val']) < 20000:
+            continue
+        else:
+            next_state = scaler.transform([next_state])
+            agent.update_replay_memory(state, action, reward, next_state, done)
+            agent.replay(batch_size)
+            state = next_state
     
-    return info['cur_val']
+    return info['cur_val'] if info['cur_val'] > 20000 else 0
 
 if __name__ == '__main__':
 
     # config
     models_folder = './rl_trader_models'
     rewards_folder = './rl_trader_rewards'
-    num_episodes = 100
-    batch_size = 4326
+    num_episodes = 500
+    
     initial_investment = 20000
 
-    args= 'train'
     
     maybe_make_dir(models_folder)
     maybe_make_dir(rewards_folder)
+
     res=get_data()
-    data = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000))),res.option_history(res.get_contract('P', 2000)))
-    data.to_csv('./new_data.csv')
-
-    data = data.drop(columns=['average','barCount', 'MA_200', 'MA_21', 'MA_9' ])
-    n_timesteps = len(data)
-    n_stocks = 2
-    n_train = int(n_timesteps)
+    while True:
+        try:
+            data = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000))),res.option_history(res.get_contract('P', 2000)))
+            data.to_csv('./new_data.csv')
+        except:
+            data=pd.read_csv('./new_data.csv',index_col='date')
+        data = data.drop(columns=['average','barCount', 'MA_200', 'MA_21', 'MA_9' ])
+        n_timesteps = len(data)
+        n_stocks = 2
+        n_train = int(n_timesteps)
+        
+        train_data = data
+        test_data = data[n_train:]
+        batch_size = len(train_data)
+        env = MultiStockEnv(train_data, initial_investment)
+        state_size = env.state_dim
+        action_size = len(env.action_space)
+        agent = DQNAgent(state_size, action_size)
+    #    scaler = get_scaler(env)
+        with open('./rl_trader_models/scaler.pkl', 'rb') as f:
+            scaler = pickle.load(f)
+        agent.load('./rl_trader_models/dqn.h5')
     
-    train_data = data
-    test_data = data[n_train:]
-
-    env = MultiStockEnv(train_data, initial_investment)
-    state_size = env.state_dim
-    action_size = len(env.action_space)
-    agent = DQNAgent(state_size, action_size)
-    scaler = get_scaler(env)
-
-
-    # store the final value of the portfolio (end of episode)
-    portfolio_value = []
-
-    # play the game num_episodes times
-    for e in range(num_episodes):
-      t0 = datetime.now()
-      val = play_one_episode(agent, env)
-      dt = datetime.now() - t0
-      print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
-      portfolio_value.append(val) # append episode end portfolio value
-
+    
+        # store the final value of the portfolio (end of episode)
+        portfolio_value = []
+    
+        # play the game num_episodes times
+        for e in range(num_episodes):
+          t0 = datetime.now()
+          val = play_one_episode(agent, env)
+          if val <20000:
+              continue
+          else:
+              dt = datetime.now() - t0
+              print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
+              portfolio_value.append(val) # append episode end portfolio value
+    
+          
+    
+        agent.save(f'{models_folder}/dqn.h5')
       
-
-      agent.save(f'{models_folder}/dqn.h5')
+        # save the scaler
+        with open(f'{models_folder}/scaler.pkl', 'wb') as f:
+          pickle.dump(scaler, f)
+        
+        # save portfolio value for each episode
+        np.save(f'{rewards_folder}.npy', portfolio_value)
+        
+        
     
-      # save the scaler
-      with open(f'{models_folder}/scaler.pkl', 'wb') as f:
-        pickle.dump(scaler, f)
+        
+        # if args == 'test':
+        #   # then load the previous scaler
+        #   with open(f'{models_folder}/scaler.pkl', 'rb') as f:
+        #     scaler = pickle.load(f)
+        
+        #   # remake the env with test data
+        #   env = MultiStockEnv(test_data, initial_investment)
+        
+        #   # make sure epsilon is not 1!
+        #   # no need to run multiple episodes if epsilon = 0, it's deterministic
+        #   agent.epsilon = 0.01
+        
+        #   # load trained weights
+        #   agent.load(f'{models_folder}/dqn.h5')
     
-    # save portfolio value for each episode
-    np.save(f'{rewards_folder}.npy', portfolio_value)
-    
-    
-
-    
-    # if args == 'test':
-    #   # then load the previous scaler
-    #   with open(f'{models_folder}/scaler.pkl', 'rb') as f:
-    #     scaler = pickle.load(f)
-    
-    #   # remake the env with test data
-    #   env = MultiStockEnv(test_data, initial_investment)
-    
-    #   # make sure epsilon is not 1!
-    #   # no need to run multiple episodes if epsilon = 0, it's deterministic
-    #   agent.epsilon = 0.01
-    
-    #   # load trained weights
-    #   agent.load(f'{models_folder}/dqn.h5')
+stored_buffer=agent.memory.sample_batch()   
+reward=c['r']
+reward=np.pad(reward, (0,16), 'constant')
+Unstardized_reward1=scaler.inverse_transform(np.reshape(reward,(-1,24)))
 
