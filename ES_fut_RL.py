@@ -350,7 +350,7 @@ class DQNAgent(object):
     def __init__(self, state_size, action_size):
         self.state_size = state_size
         self.action_size = action_size
-        self.memory = ReplayBuffer(state_size, action_size, size=100)
+        self.memory = ReplayBuffer(state_size, action_size, size=2000)
         self.gamma = 0.95  # discount rate
         self.epsilon = 1 # exploration rate
         self.epsilon_min = 0.01
@@ -370,7 +370,7 @@ class DQNAgent(object):
         return np.argmax(act_values[0])  # returns action
 
 
-    def replay(self, batch_size=320):
+    def replay(self, batch_size=100):
 
         # first check if replay buffer contains enough data
         if self.memory.size < batch_size:
@@ -421,13 +421,13 @@ def play_one_episode(agent, env):
         action = agent.act(state)
         next_state, reward, done, info = env.step(action)
         # print(f'next_state={next_state}, action={action}, reward={reward}, done={done}, info={info}')
-        # if float(info['cur_val']) < 20000:
-        #     continue
-        # else:
-        next_state = scaler.transform([next_state])
-        agent.update_replay_memory(state, action, reward, next_state, done)
-        agent.replay(batch_size)
-        state = next_state
+        if float(info['cur_val']) < 20000:
+            continue
+        else:
+            next_state = scaler.transform([next_state])
+            agent.update_replay_memory(state, action, reward, next_state, done)
+            agent.replay(batch_size)
+            state = next_state
 
 
 
@@ -469,7 +469,7 @@ if __name__ == '__main__':
         n_train = int(n_timesteps)
 
         train_data = data
-        batch_size = 32 #only one batch
+        batch_size = 1500 #only one batch
         env = MultiStockEnv(train_data, initial_investment) # start envirnoment
         state_size = env.state_dim
         action_size = len(env.action_space)
