@@ -393,6 +393,9 @@ class DQNAgent(object):
       # the prediction for all values.
       # Then, only change the targets for the actions taken.
       # Q(s,a)
+      target[done] = rewards[done]
+      
+      
       target_full = self.model.predict(states)
 
       target_full[np.arange(batch_size), actions] = target
@@ -483,7 +486,7 @@ if __name__ == '__main__':
         except Exception as error:
             print(error)
         try:
-            with open(f'{rewards_folder}/scaler.pickle', 'rb') as f:
+            with open(f'{rewards_folder}/scaler.pkl', 'rb') as f:
                 scaler = pickle.load(f)  # load scaler  # load scaler
         except Exception as error:
             print(error)
@@ -496,7 +499,7 @@ if __name__ == '__main__':
         for e in range(num_episodes):
             t0 = datetime.now()
             val = play_one_episode(agent, env)
-            if val >2000: # take only profitable trades
+            if val >initial_investment: # take only profitable trades
                 succeded_trades +=1
             print(f'Number of random trades = {agent.random_trades} from {len(train_data)} or {round(100*agent.random_trades/len(train_data),0)}% and Epsilon = {agent.epsilon}' )
             dt = datetime.now() - t0
@@ -515,7 +518,7 @@ if __name__ == '__main__':
         # pickle.dump(scaler, f)
         # f.close()
         # save the scaler
-        with open(f'{models_folder}/scaler.pkl', 'wb') as f:
+        with open(f'{rewards_folder}/scaler.pkl', 'wb') as f:
           pickle.dump(scaler, f)
 
         # save portfolio value for each episode
