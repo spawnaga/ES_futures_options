@@ -27,19 +27,13 @@ import os
 import pickle
 import math
 from sklearn.preprocessing import StandardScaler
-
-
+from srl import srl
 
 nest_asyncio.apply()
-
-
-
 
 def maybe_make_dir(directory):
   if not os.path.exists(directory):
     os.makedirs(directory)
-
-
 
 class get_data:
 
@@ -85,7 +79,12 @@ class get_data:
             else:
                 return contract
 
-
+    def res_sup(self,ES_df):
+        ES_df = ES_df.reset_index(drop=True)
+        srlDF = srl(ES_df, len(ES_df))
+        res = srlDF['Resistance'].values
+        sup = srlDF['Support'].values
+        return res, sup
 
     def ES(self):
         ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
@@ -95,6 +94,7 @@ class get_data:
                                      barSizeSetting=interval, whatToShow = 'TRADES', useRTH = False)
         ES_df = util.df(ES_df)
         ES_df.set_index('date',inplace=True)
+        ES_df['Resistance'], ES_df['Support'] = self.res_sup(ES_df)
         ES_df['RSI'] = ta.RSI(ES_df['close'])
         ES_df['macd'],ES_df['macdsignal'],ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26, signalperiod=9)
         ES_df['MA_9']=ta.MA(ES_df['close'], timeperiod=9)
@@ -110,8 +110,8 @@ class get_data:
         ES_df['roll_max_vol']=ES_df['volume'].rolling(20).max()
         ES_df['EMA_21-EMA_9']=ES_df['EMA_21']-ES_df['EMA_9']
         ES_df['EMA_200-EMA_50']=ES_df['EMA_200']-ES_df['EMA_50']
-
         ES_df.dropna(inplace = True)
+        
         return ES_df
 
     def option_history(self, contract):
@@ -275,7 +275,7 @@ class MultiStockEnv:
         return obs
     
     def _get_val(self):
-        return self.stock_owned.dot(self.stock_price) + self.cash_in_hand
+        return self.stock_owned.dot(self.stock_price*50) + self.cash_in_hand
         
     def _trade(self, action):
       # index the action we want to perform
@@ -313,6 +313,7 @@ class MultiStockEnv:
             if self.cash_in_hand > self.stock_price[i] * 50:
               self.stock_owned[i] += 1 # buy one share
               self.cash_in_hand -= self.stock_price[i] * 50
+              print(f'price = {self.stock_price[i]}, cash in hand={self.cash_in_hand}, no of stocks = {self.stock_owned[i]}')
             else:
               can_buy = False
 
@@ -418,41 +419,66 @@ class DQNAgent(object):
 def play_one_episode(agent, env):
     # note: after transforming states are already 1xD
     state = env.reset()
+    original = state
     state = scaler.transform([state])
     done = False
     agent.random_trades = 0
-    k=0
+    old_action = 0
     while not done:
         action = agent.act(state)
+        
         next_state, reward, done, info = env.step(action)
         # print(f'{k}) action = {action}, reward = {reward}')
         # if float(info['cur_val']) < 20000:
         #     continue
         # else:
+        if (original[:2]!= next_state[:2]).any() :
+            print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
+        original = next_state
+        old_action = action
         next_state = scaler.transform([next_state])
         agent.update_replay_memory(state, action, reward, next_state, done)
         agent.replay(batch_size)
         state = next_state
-        k +=1 
-
 
     
     return info['cur_val'] #if info['cur_val'] > 20000 else 0
 
+def test_trade(agent, env):
+    state = env.reset()
+    original = state
+    state = scaler.transform([state])
+    done = False
+    while not done:
+        action = agent.act(state)
+        
+        next_state, reward, done, info = env.step(action)
+        
+        if (original[:2]!= next_state[:2]).any() :
+            print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
+        original = next_state
+        next_state = scaler.transform([next_state])
+        
+        state = next_state
+    return info['cur_val']
+
 if __name__ == '__main__':
 
     # config
-    models_folder = './rl_trader_models_MACD' #where models and scaler are saved
-    rewards_folder = './rl_trader_rewards_MACD' #where results are saved
+    models_folder = './home/alex/Projects/RL_trade_ES_futures/rl_trader_models_RSI_ATR_Close' #where models and scaler are saved
+    rewards_folder = './home/alex/Projects/RL_trade_ES_futures/rl_trader_rewards_RSI_ATR_Close' #where results are saved
     num_episodes = 100 #number of loops per a cycle
-
+    
     initial_investment = 2000
 
 
     maybe_make_dir(models_folder)
     maybe_make_dir(rewards_folder)
-
+    
     res=get_data()
+    use = 'train'
+
+    
     while True:
         succeded_trades = 0 # To count percentage of success
         try:
@@ -469,10 +495,8 @@ if __name__ == '__main__':
             data_raw.to_csv('./new_data.csv') # save data incase tws goes dowen
         except:
             data_raw=pd.read_csv('./new_data.csv',index_col='date')
-        data = data_raw[['macd', 'macdsignal', 'macdhist', 'ES_C_close', 'ES_P_close']] #choose parameters to drop if not needed
+        data = data_raw[['close', 'RSI', 'ATR', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
         n_stocks = 2
-        
- 
         train_data = data
         batch_size = 100
         env = MultiStockEnv(train_data, initial_investment) # start envirnoment
@@ -496,57 +520,49 @@ if __name__ == '__main__':
         # agent.epsilon_min = 0.01
         # agent.epsilon_decay = 0.995
         # play the game num_episodes times
-        for e in range(num_episodes):
+        if use == 'train':
+            for e in range(num_episodes):
+                t0 = datetime.now()
+                val = play_one_episode(agent, env)
+                if val >initial_investment: # take only profitable trades
+                    succeded_trades +=1
+                print(f'Number of random trades = {agent.random_trades} from {len(train_data)} or {round(100*agent.random_trades/len(train_data),0)}% and Epsilon = {agent.epsilon}' )
+                dt = datetime.now() - t0
+                print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
+                portfolio_value.append(val) # append episode end portfolio value
+                if agent.epsilon >= agent.epsilon_min:
+                    agent.epsilon_min + (agent.epsilon) * \
+                        math.exp(-1 * env.cur_step * agent.epsilon_decay)
+     
+            initial_investment = val
+            print(f'*****Loop finished, No. of succeded trades = {succeded_trades}, percentage = {succeded_trades/num_episodes*100}%')
+            agent.save(f'{models_folder}/dqn.h5')
+            
+            
+            # f = open("/home/alex/Projects/RL_trade_ES_futures/rl_trader_rewards/scaler.pickle","wb")
+            # pickle.dump(scaler, f)
+            # f.close()
+            # save the scaler
+            with open(f'{rewards_folder}/scaler.pkl', 'wb') as f:
+              pickle.dump(scaler, f)
+    
+            # save portfolio value for each episode
+    
+            np.save(f'{rewards_folder}/reward.npy', np.array(portfolio_value))
+            np.save(f'{rewards_folder}/succeded_trades.npy', np.array(succeded_trades))
+            np.save(f'{rewards_folder}/succeded_trades.npy', np.array(agent.random_trades))
+
+        else:
+            agent.epsilon = 0.0001
             t0 = datetime.now()
-            val = play_one_episode(agent, env)
-            if val >initial_investment: # take only profitable trades
-                succeded_trades +=1
-            print(f'Number of random trades = {agent.random_trades} from {len(train_data)} or {round(100*agent.random_trades/len(train_data),0)}% and Epsilon = {agent.epsilon}' )
+            val = test_trade(agent, env)
             dt = datetime.now() - t0
-            print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
-            portfolio_value.append(val) # append episode end portfolio value
-            if agent.epsilon >= agent.epsilon_min:
-                agent.epsilon_min + (agent.epsilon) * \
-                    math.exp(-1 * env.cur_step * agent.epsilon_decay)
- 
-        initial_investment = val
-        print(f'*****Loop finished, No. of succeded trades = {succeded_trades}, percentage = {succeded_trades/num_episodes*100}%')
-        agent.save(f'{models_folder}/dqn.h5')
-        
-        
-        # f = open("/home/alex/Projects/RL_trade_ES_futures/rl_trader_rewards/scaler.pickle","wb")
-        # pickle.dump(scaler, f)
-        # f.close()
-        # save the scaler
-        with open(f'{rewards_folder}/scaler.pkl', 'wb') as f:
-          pickle.dump(scaler, f)
-
-        # save portfolio value for each episode
-
-        np.save(f'{rewards_folder}/reward.npy', np.array(portfolio_value))
-        np.save(f'{rewards_folder}/succeded_trades.npy', np.array(succeded_trades))
-        np.save(f'{rewards_folder}/succeded_trades.npy', np.array(agent.random_trades))
+            print(f'Number of random trades = {agent.random_trades} from {len(data)} or {round(100*agent.random_trades/len(data),0)}% and Epsilon = {agent.epsilon} and final value={val}' )
+            break
 
 
-
-
-        # if args == 'test':
-        #   # then load the previous scaler
-        #   with open(f'{models_folder}/scaler.pkl', 'rb') as f:
-        #     scaler = pickle.load(f)
-
-        #   # remake the env with test data
-        #   env = MultiStockEnv(test_data, initial_investment)
-
-        #   # make sure epsilon is not 1!
-        #   # no need to run multiple episodes if epsilon = 0, it's deterministic
-        #   agent.epsilon = 0.01
-
-        #   # load trained weights
-        #   agent.load(f'{models_folder}/dqn.h5')
-
-stored_buffer=agent.memory.sample_batch()
-reward=c['r']
-reward=np.pad(reward, (0,16), 'constant')
-Unstardized_reward1=scaler.inverse_transform(np.reshape(reward,(-1,24)))
+# stored_buffer=agent.memory.sample_batch()
+# reward=c['r']
+# reward=np.pad(reward, (0,16), 'constant')
+# Unstardized_reward1=scaler.inverse_transform(np.reshape(reward,(-1,24)))
 
