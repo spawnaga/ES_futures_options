@@ -313,7 +313,7 @@ class MultiStockEnv:
             if self.cash_in_hand > self.stock_price[i] * 50:
               self.stock_owned[i] += 1 # buy one share
               self.cash_in_hand -= self.stock_price[i] * 50
-              print(f'price = {self.stock_price[i]}, cash in hand={self.cash_in_hand}, no of stocks = {self.stock_owned[i]}')
+              # print(f'price = {self.stock_price[i]}, cash in hand={self.cash_in_hand}, no of stocks = {self.stock_owned[i]}')
             else:
               can_buy = False
 
@@ -465,8 +465,8 @@ def test_trade(agent, env):
 if __name__ == '__main__':
 
     # config
-    models_folder = './home/alex/Projects/RL_trade_ES_futures/rl_trader_models_RSI_ATR_Close' #where models and scaler are saved
-    rewards_folder = './home/alex/Projects/RL_trade_ES_futures/rl_trader_rewards_RSI_ATR_Close' #where results are saved
+    models_folder = './RL_trade_ES_futures/rl_trader_models_Sup/Res_RSI_ATR_Close' #where models and scaler are saved
+    rewards_folder = './RL_trade_ES_futures/rl_trader_rewards_Sup/Res_RSI_ATR_Close' #where results are saved
     num_episodes = 100 #number of loops per a cycle
     
     initial_investment = 2000
@@ -476,7 +476,7 @@ if __name__ == '__main__':
     maybe_make_dir(rewards_folder)
     
     res=get_data()
-    use = 'train'
+    use = 'test'
 
     
     while True:
@@ -495,7 +495,7 @@ if __name__ == '__main__':
             data_raw.to_csv('./new_data.csv') # save data incase tws goes dowen
         except:
             data_raw=pd.read_csv('./new_data.csv',index_col='date')
-        data = data_raw[['close', 'RSI', 'ATR', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
+        data = data_raw[['close', 'Resistance', 'Support', 'RSI', 'ATR', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
         n_stocks = 2
         train_data = data
         batch_size = 100
