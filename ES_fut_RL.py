@@ -417,11 +417,11 @@ class DQNAgent(object):
 def play_one_episode(agent, env):
     # note: after transforming states are already 1xD
     state = env.reset()
-    original = state
+    # original = state
     state = scaler.transform([state])
     done = False
     agent.random_trades = 0
-    old_action = 0
+    # old_action = 0
     while not done:
         action = agent.act(state)
         
@@ -430,10 +430,10 @@ def play_one_episode(agent, env):
         # if float(info['cur_val']) < 20000:
         #     continue
         # else:
-        if (original[:2]!= next_state[:2]).any() :
-            print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
-        original = next_state
-        old_action = action
+        # if (original[:2]!= next_state[:2]).any() :
+        #     print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
+        # original = next_state
+        # old_action = action
         next_state = scaler.transform([next_state])
         agent.update_replay_memory(state, action, reward, next_state, done)
         agent.replay(batch_size)
@@ -474,7 +474,7 @@ if __name__ == '__main__':
     maybe_make_dir(rewards_folder)
     
     res=get_data()
-    use = 'test'
+    use = 'train' #define the use for the code train or test
 
     
     while True:
