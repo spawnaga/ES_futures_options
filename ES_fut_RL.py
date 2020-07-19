@@ -13,7 +13,7 @@ from ib_insync import *
 import nest_asyncio
 from scipy.ndimage.interpolation import shift
 import talib as ta
-
+from talib import MA_Type
 
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.layers import Dense, Input, Dropout, LSTM, GlobalAveragePooling1D
@@ -108,6 +108,7 @@ class get_data:
         ES_df['roll_max_vol']=ES_df['volume'].rolling(20).max()
         ES_df['EMA_21-EMA_9']=ES_df['EMA_21']-ES_df['EMA_9']
         ES_df['EMA_200-EMA_50']=ES_df['EMA_200']-ES_df['EMA_50']
+        ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace = True)
         
         return ES_df
@@ -463,8 +464,8 @@ def test_trade(agent, env):
 if __name__ == '__main__':
 
     # config
-    models_folder = './RL_trade_ES_futures/rl_trader_models_Sup/Res_RSI_ATR_Close' #where models and scaler are saved
-    rewards_folder = './RL_trade_ES_futures/rl_trader_rewards_Sup/Res_RSI_ATR_Close' #where results are saved
+    models_folder = './RL_trade_ES_futures/rl_trader_models_Sup/BO_RSI_ATR_Close' #where models and scaler are saved
+    rewards_folder = './RL_trade_ES_futures/rl_trader_rewards_Sup/BO_RSI_ATR_Close' #where results are saved
     num_episodes = 100 #number of loops per a cycle
     
     initial_investment = 2000
@@ -491,9 +492,11 @@ if __name__ == '__main__':
             data_raw = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000)))\
                                ,res.option_history(res.get_contract('P', 2000))) #collect live data of ES with TA and options prices
             data_raw.to_csv('./new_data.csv') # save data incase tws goes dowen
-        except:
-            data_raw=pd.read_csv('./new_data.csv',index_col='date')
-        data = data_raw[['close', 'Resistance', 'Support', 'RSI', 'ATR', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
+        except Exception as error:
+            print(error)
+            # data_raw=pd.read_csv('./new_data.csv',index_col='date')
+
+        data = data_raw[['close', 'B_middle', 'B_lower', 'RSI', 'ATR', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
         n_stocks = 2
         train_data = data
         batch_size = 100
