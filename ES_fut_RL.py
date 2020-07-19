@@ -25,7 +25,7 @@ import os
 import pickle
 import math
 from sklearn.preprocessing import StandardScaler
-from srl import srl
+from ressup import ressup
 
 nest_asyncio.apply()
 
@@ -79,9 +79,9 @@ class get_data:
 
     def res_sup(self,ES_df):
         ES_df = ES_df.reset_index(drop=True)
-        srlDF = srl(ES_df, len(ES_df))
-        res = srlDF['Resistance'].values
-        sup = srlDF['Support'].values
+        ressupDF = ressup(ES_df, len(ES_df))
+        res = ressupDF['Resistance'].values
+        sup = ressupDF['Support'].values
         return res, sup
 
     def ES(self):
