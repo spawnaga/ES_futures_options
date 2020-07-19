@@ -492,9 +492,8 @@ if __name__ == '__main__':
             data_raw = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000)))\
                                ,res.option_history(res.get_contract('P', 2000))) #collect live data of ES with TA and options prices
             data_raw.to_csv('./new_data.csv') # save data incase tws goes dowen
-        except Exception as error:
-            print(error)
-            # data_raw=pd.read_csv('./new_data.csv',index_col='date')
+        except:
+            data_raw=pd.read_csv('./new_data.csv',index_col='date')
 
         data = data_raw[['close', 'B_middle', 'B_lower', 'RSI', 'ATR', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
         n_stocks = 2
@@ -540,12 +539,10 @@ if __name__ == '__main__':
             agent.save(f'{models_folder}/dqn.h5')
             
             
-            # f = open("/home/alex/Projects/RL_trade_ES_futures/rl_trader_rewards/scaler.pickle","wb")
-            # pickle.dump(scaler, f)
-            # f.close()
             # save the scaler
             with open(f'{rewards_folder}/scaler.pkl', 'wb') as f:
               pickle.dump(scaler, f)
+              f.close()
     
             # save portfolio value for each episode
     
