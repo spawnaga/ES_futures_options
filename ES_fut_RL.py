@@ -124,7 +124,10 @@ class get_data:
         return pd.merge(df1,df2, on='date', how='outer').dropna()
 
 # =============================================================================
-# start machine learning
+# start machine learning some parts of this comming code were taken from 
+# the lazy programmer course in udemy for Tensorflow machine learning class
+# Lecture of Q-Learning 
+# https://github.com/lazyprogrammer/machine_learning_examples/blob/master/tf2.0/rl_trader.py
 # =============================================================================
 
 ### The experience replay memory ###
