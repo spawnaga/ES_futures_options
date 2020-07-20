@@ -161,7 +161,7 @@ def maybe_make_dir(directory):
 
 
 
-def mlp(input_dim, n_action, n_hidden_layers=2, hidden_dim=5):
+def mlp(input_dim, n_action, n_hidden_layers=1, hidden_dim=5):
     """ A multi-layer perceptron """
      
     # input layer
@@ -170,12 +170,13 @@ def mlp(input_dim, n_action, n_hidden_layers=2, hidden_dim=5):
      
     # hidden layers
     for _ in range(n_hidden_layers):
-      x = Dropout(0.2)(x)
-      x = LSTM(hidden_dim, return_sequences = True)(x)
+      # x = Dropout(0.2)(x)
+      # x = LSTM(hidden_dim, return_sequences = True)(x)
+      x = Dense(hidden_dim, activation='relu')(x)
      
     x = GlobalAveragePooling1D()(x)
     # final layer
-    x = Dense(n_action, activation='relu')(x)
+    # x = Dense(n_action, activation='relu')(x)
     x = Dense(n_action, activation='softmax')(x)
     # make the model
     model = Model(i, x)
@@ -465,10 +466,10 @@ def test_trade(agent, env):
     return info['cur_val']
 
 if __name__ == '__main__':
-
+   
     # config
-    models_folder = './RL_trade_ES_futures/rl_trader_models_Sup/BO_RSI_ATR_Close' #where models and scaler are saved
-    rewards_folder = './RL_trade_ES_futures/rl_trader_rewards_Sup/BO_RSI_ATR_Close' #where results are saved
+    models_folder = './RL_trade_ES_futures/rl_trader_models_Sup/1_layer_BO_RSI_ATR_Close' #where models and scaler are saved
+    rewards_folder = './RL_trade_ES_futures/rl_trader_rewards_Sup/1_layer_BO_RSI_ATR_Close' #where results are saved
     num_episodes = 100 #number of loops per a cycle
     
     initial_investment = 2000
@@ -482,6 +483,7 @@ if __name__ == '__main__':
 
     
     while True:
+        
         succeded_trades = 0 # To count percentage of success
         try:
             ib = IB()
@@ -524,35 +526,53 @@ if __name__ == '__main__':
         # agent.epsilon_decay = 0.995
         # play the game num_episodes times
         if use == 'train':
-            for e in range(num_episodes):
-                t0 = datetime.now()
-                val = play_one_episode(agent, env)
-                if val >initial_investment: # take only profitable trades
-                    succeded_trades +=1
-                print(f'Number of random trades = {agent.random_trades} from {len(train_data)} or {round(100*agent.random_trades/len(train_data),0)}% and Epsilon = {agent.epsilon}' )
-                dt = datetime.now() - t0
-                print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
-                portfolio_value.append(val) # append episode end portfolio value
-                if agent.epsilon >= agent.epsilon_min:
-                    agent.epsilon_min + (agent.epsilon) * \
-                        math.exp(-1 * env.cur_step * agent.epsilon_decay)
-     
-            initial_investment = val
-            print(f'*****Loop finished, No. of succeded trades = {succeded_trades}, percentage = {succeded_trades/num_episodes*100}%')
-            agent.save(f'{models_folder}/dqn.h5')
-            
-            
-            # save the scaler
-            with open(f'{rewards_folder}/scaler.pkl', 'wb') as f:
-              pickle.dump(scaler, f)
-              f.close()
-    
-            # save portfolio value for each episode
-    
-            np.save(f'{rewards_folder}/reward.npy', np.array(portfolio_value))
-            np.save(f'{rewards_folder}/succeded_trades.npy', np.array(succeded_trades))
-            np.save(f'{rewards_folder}/succeded_trades.npy', np.array(agent.random_trades))
-
+            try:
+                for e in range(num_episodes):
+                    t0 = datetime.now()
+                    val = play_one_episode(agent, env)
+                    if val >initial_investment: # take only profitable trades
+                        succeded_trades +=1
+                    print(f'Number of random trades = {agent.random_trades} from {len(train_data)} or {round(100*agent.random_trades/len(train_data),0)}% and Epsilon = {agent.epsilon}' )
+                    dt = datetime.now() - t0
+                    print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
+                    portfolio_value.append(val) # append episode end portfolio value
+                    if agent.epsilon >= agent.epsilon_min:
+                        agent.epsilon_min + (agent.epsilon) * \
+                            math.exp(-1 * env.cur_step * agent.epsilon_decay)
+         
+                initial_investment = val
+                print(f'*****Loop finished, No. of succeded trades = {succeded_trades}, percentage = {succeded_trades/num_episodes*100}%')
+                agent.save(f'{models_folder}/dqn.h5')
+                
+                
+                # save the scaler
+                with open(f'{rewards_folder}/scaler.pkl', 'wb') as f:
+                  pickle.dump(scaler, f)
+                  f.close()
+        
+                # save portfolio value for each episode
+        
+                np.save(f'{rewards_folder}/reward.npy', np.array(portfolio_value))
+                np.save(f'{rewards_folder}/succeded_trades.npy', np.array(succeded_trades))
+                np.save(f'{rewards_folder}/succeded_trades.npy', np.array(agent.random_trades))
+            except KeyboardInterrupt:
+                print(f'*****Loop finished, No. of succeded trades = {succeded_trades}, percentage = {succeded_trades/num_episodes*100}%')
+                agent.save(f'{models_folder}/dqn.h5')
+                
+                
+                # save the scaler
+                with open(f'{rewards_folder}/scaler.pkl', 'wb') as f:
+                  pickle.dump(scaler, f)
+                  f.close()
+        
+                # save portfolio value for each episode
+        
+                np.save(f'{rewards_folder}/reward.npy', np.array(portfolio_value))
+                np.save(f'{rewards_folder}/succeded_trades.npy', np.array(succeded_trades))
+                np.save(f'{rewards_folder}/succeded_trades.npy', np.array(agent.random_trades))
+            except Exception as error:
+                print("UNEXPECTED EXCEPTION")
+                print(error)
         else:
             agent.epsilon = 0.0001
             t0 = datetime.now()
@@ -561,6 +581,7 @@ if __name__ == '__main__':
             print(f'Number of random trades = {agent.random_trades} from {len(data)} or {round(100*agent.random_trades/len(data),0)}% and Epsilon = {agent.epsilon} and final value={val}' )
             break
 
+            
 
 # stored_buffer=agent.memory.sample_batch()
 # reward=c['r']
