@@ -9,16 +9,12 @@ Created on Sat May 30 22:45:37 2020
 import numpy as np
 import pandas as pd
 
-from ib_insync import *
-import nest_asyncio
-from scipy.ndimage.interpolation import shift
-import talib as ta
-from talib import MA_Type
+
 
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.layers import Dense, Input, Dropout, LSTM, GlobalAveragePooling1D
 from tensorflow.keras.optimizers import Adam
-
+import nest_asyncio
 from datetime import datetime, timedelta
 import itertools
 import os
@@ -470,7 +466,7 @@ if __name__ == '__main__':
     # config
     models_folder = './RL_trade_ES_futures/rl_trader_models_Sup/1_layer_BO_RSI_ATR_Close' #where models and scaler are saved
     rewards_folder = './RL_trade_ES_futures/rl_trader_rewards_Sup/1_layer_BO_RSI_ATR_Close' #where results are saved
-    num_episodes = 100 #number of loops per a cycle
+    num_episodes = 10 #number of loops per a cycle
     
     initial_investment = 2000
 
@@ -486,6 +482,9 @@ if __name__ == '__main__':
         
         succeded_trades = 0 # To count percentage of success
         try:
+            from ib_insync import *
+            import talib as ta
+            from talib import MA_Type
             ib = IB()
             ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
             ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
@@ -556,7 +555,7 @@ if __name__ == '__main__':
                 np.save(f'{rewards_folder}/succeded_trades.npy', np.array(succeded_trades))
                 np.save(f'{rewards_folder}/succeded_trades.npy', np.array(agent.random_trades))
             except KeyboardInterrupt:
-                print(f'*****Loop finished, No. of succeded trades = {succeded_trades}, percentage = {succeded_trades/num_episodes*100}%')
+                print(f'*****Loop finished, No. of succeded trades = {succeded_trades}, percentage = {succeded_trades/(e + 1)*100}%')
                 agent.save(f'{models_folder}/dqn.h5')
                 
                 
@@ -570,6 +569,7 @@ if __name__ == '__main__':
                 np.save(f'{rewards_folder}/reward.npy', np.array(portfolio_value))
                 np.save(f'{rewards_folder}/succeded_trades.npy', np.array(succeded_trades))
                 np.save(f'{rewards_folder}/succeded_trades.npy', np.array(agent.random_trades))
+                break
             except Exception as error:
                 print("UNEXPECTED EXCEPTION")
                 print(error)
