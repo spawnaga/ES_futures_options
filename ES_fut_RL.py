@@ -539,7 +539,6 @@ if __name__ == '__main__':
                         agent.epsilon_min + (agent.epsilon) * \
                             math.exp(-1 * env.cur_step * agent.epsilon_decay)
          
-                initial_investment = val
                 print(f'*****Loop finished, No. of succeded trades = {succeded_trades}, percentage = {succeded_trades/num_episodes*100}%')
                 agent.save(f'{models_folder}/dqn.h5')
                 
