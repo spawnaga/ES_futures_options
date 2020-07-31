@@ -477,7 +477,7 @@ if __name__ == '__main__':
     res=get_data()
     use = 'train' #define the use for the code train or test
 
-    
+   
     while True:
         
         succeded_trades = 0 # To count percentage of success
