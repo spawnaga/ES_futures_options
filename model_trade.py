@@ -25,10 +25,12 @@ from ressup import ressup
 import nest_asyncio
 nest_asyncio.apply()
 
-
-def maybe_make_dir(directory):
-  if not os.path.exists(directory):
-    os.makedirs(directory)
+print(' actions are 0 = sell, 1 = hold and, 2 = buy \
+      there are 2 contracts to have in position \
+          either calls or puts. Accordingly there are \
+              8 actions to perform in trading ranging as \
+                  ')
+print('[0,0] [0,1] [1,0] [1,1] [0,2] ...etc')
 
 class get_data:
 
@@ -185,42 +187,48 @@ No_days = '1 D'
 interval = '1 min'
 res = get_data()
 
-    
+
     
 def flatten_position(position):
-    contract = position.contract
-    if position.position > 0: # Number of active Long positions
-        action = 'Sell' # to offset the long positions
-    elif position.position < 0: # Number of active Short positions
-        action = 'Buy' # to offset the short positions
-    else:
-        assert False
-    totalQuantity = abs(position.position)
-    order = MarketOrder(action=action, totalQuantity=totalQuantity)
-    trade = ib.placeOrder(contract, order)
-    print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
-    t0 = datetime.now()
     
-    while trade.orderStatus.status != "Filled" :
-        if (datetime.now() - t0).seconds > 120:
-            ib.cancelOrder()
-            return       
-    assert trade in ib.trades(), 'trade not listed in ib.trades'
+    for each in position:
+        ib.qualifyContracts(each.contract)
+        if each.position > 0: # Number of active Long positions
+            action = 'SELL' # to offset the long positions
+        elif each.position < 0: # Number of active Short positions
+            action = 'BUY' # to offset the short positions
+        else:
+            assert False
+        totalQuantity = abs(each.position)
+        order = LimitOrder(action, totalQuantity, ib.reqMktData(each.contract).bid-.25) #round(25 * round(stock_price[i]/25, 2), 2))
+        trade = ib.placeOrder(each.contract, order)
+        print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
+        for c in ib.loopUntil(condition=0, timeout=120): # trade.orderStatus.status == "Filled"  or \
+            #trade.orderStatus.status == "Cancelled"
+            print(trade.orderStatus.status)
+            c=len(ib.openOrders())
+            print(f'Open orders = {c}')
+            if c==0: 
+                print('sell loop finished')
+                return
+        
     
 def option_position():
     stock_owned = np.zeros(2)
     position = ib.portfolio()
-    call_contract= 0
-    put_contract = 0
+    call_position= None
+    put_position = None
     for each in position:
-        if str(res.get_contract('C', 2000).conId) in str(each.contract.conId):
-            call_contract = each
+        if each.contract.right == 'C':
+            call_position = each
             stock_owned[0] = each.position
-        elif str(res.get_contract('P', 2000).conId) in str(each.contract.conId):
-            put_contract = each
+        elif each.contract.right == 'P':
+            put_position = each
             stock_owned[1] = each.position
-    return stock_owned, call_contract, put_contract
+    return stock_owned, call_position, put_position
 while True:    
+    call_contract = option_position()[1]
+    put_contract = option_position()[2]
     cash_in_hand = float(ib.accountSummary()[5].value)
     data_raw = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000)))\
                        ,res.option_history(res.get_contract('P', 2000))) 
@@ -245,9 +253,9 @@ while True:
     if sell_index:
       for i in sell_index:
         if not stock_owned[i] == 0:
-            position = call_contract if i == 0 else put_contract
-            flatten_position(position)
-        print('sell loop finished')
+            contract_position = call_contract if i == 0 else put_contract
+            flatten_position(contract_position)
+        
         cash_in_hand = float(ib.accountSummary()[5].value)
         stock_owned, call_contract, put_contract = option_position()
     if buy_index:
@@ -256,19 +264,21 @@ while True:
         for i in buy_index:
           if cash_in_hand > stock_price[i] * 50:
             contract = call_contract if i == 0 else put_contract
-            order = LimitOrder('BUY', 1, stock_price[i] + 0.25)
+            order = LimitOrder('BUY', 1, ib.reqMktData(contract).ask+.25) #round(25 * round(stock_price[i]/25, 2), 2))
             trade = ib.placeOrder(contract, order)
-            t0 = datetime.now()
-            while trade.orderStatus.status != "Filled" :
-                if (datetime.now() - t0).seconds > 120:
-                    ib.cancelOrder()
-                    print('trade canceled')
-                    break
-            print('buy loop finished')
+            for c in ib.loopUntil(condition=0, timeout=120): # trade.orderStatus.status == "Filled"  or \
+                #trade.orderStatus.status == "Cancelled"
+                print(trade.orderStatus.status)
+                c=len(ib.openOrders())
+                print(f'Open orders = {c}')
+                if c==0: break
+            print('out of loop')
             stock_owned, call_contract, put_contract = option_position()
             cash_in_hand = float(ib.accountSummary()[5].value)
           else:
             can_buy = False
             
-    print(action, action_vec, stock_owned, cash_in_hand)
-    time.sleep(60)
+    print(f'action from action lists = {action}, action_vector = {action_vec},\
+          no of contract position [Calls, Puts] = {stock_owned}, cash in hand\
+              = {cash_in_hand}')
+    time.sleep(30)
