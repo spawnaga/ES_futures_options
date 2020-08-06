@@ -226,6 +226,8 @@ def option_position():
             put_position = each
             stock_owned[1] = each.position
     return stock_owned, call_position, put_position
+
+
 while True:    
     call_contract = option_position()[1]
     put_contract = option_position()[2]
