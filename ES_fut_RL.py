@@ -572,6 +572,7 @@ if __name__ == '__main__':
             except Exception as error:
                 print("UNEXPECTED EXCEPTION")
                 print(error)
+                break
         else:
             agent.epsilon = 0.0001
             t0 = datetime.now()
