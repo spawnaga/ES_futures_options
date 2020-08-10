@@ -482,7 +482,7 @@ if __name__ == '__main__':
     rewards_folder = f'{path}/rl_trader_rewards_Sup/1_layer_BO_RSI_ATR_Close' #where results are saved
     num_episodes = 10 #number of loops per a cycle
     
-    initial_investment = 2000
+    initial_investment = 200000
 
 
     maybe_make_dir(models_folder)
@@ -523,15 +523,15 @@ if __name__ == '__main__':
         agent = DQNAgent(state_size, action_size)
         scaler = get_scaler(env)
         agent.epsilon = 1
-        try:
-            agent.load(f'{models_folder}/dqn.h5') # load agent
-        except Exception as error:
-            print(error)
-        try:
-            with open(f'{rewards_folder}/scaler.pkl', 'rb') as f:
-                scaler = pickle.load(f)  # load scaler  # load scaler
-        except Exception as error:
-            print(error)
+        # try:
+        #     agent.load(f'{models_folder}/dqn.h5') # load agent
+        # except Exception as error:
+        #     print(error)
+        # try:
+        #     with open(f'{rewards_folder}/scaler.pkl', 'rb') as f:
+        #         scaler = pickle.load(f)  # load scaler  # load scaler
+        # except Exception as error:
+        #     print(error)
         # store the final value of the portfolio (end of episode)
         portfolio_value = []
 
@@ -592,7 +592,7 @@ if __name__ == '__main__':
             print(f'Number of random trades = {agent.random_trades} from {len(data)} or {round(100*agent.random_trades/len(data),0)}% and Epsilon = {agent.epsilon} and final value={val}' )
             break
 
-      
+
 
 
 

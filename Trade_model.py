@@ -301,7 +301,8 @@ while True:
                 while math.isnan(stock_price[i]):
                     stock_price[i] = ib.reqMktData(contract).ask+0.25
                     ib.sleep(0.1)
-                if cash_in_hand > (stock_price[i] * 50 * 4) and cash_in_hand > portolio_value / 4:
+                if cash_in_hand > (stock_price[i] * 50 * 4) and cash_in_hand > portolio_value \
+                    and ((stock_owned[0] == 0 and i == 0) or (stock_owned[1] == 0 and i == 1)): 
                   quantity = int((cash_in_hand/(stock_price[i] * 50))/4)
                   
                   order = LimitOrder('BUY', quantity, stock_price[i]) #round(25 * round(stock_price[i]/25, 2), 2))
@@ -320,6 +321,7 @@ while True:
                   print('out of loop')
                   stock_owned, call_contract, put_contract = option_position()
                   cash_in_hand = float(ib.accountSummary()[5].value)
+                  can_buy = False
                 else:
                   can_buy = False
 
