@@ -523,15 +523,15 @@ if __name__ == '__main__':
         agent = DQNAgent(state_size, action_size)
         scaler = get_scaler(env)
         agent.epsilon = 1
-        # try:
-        #     agent.load(f'{models_folder}/dqn.h5') # load agent
-        # except Exception as error:
-        #     print(error)
-        # try:
-        #     with open(f'{rewards_folder}/scaler.pkl', 'rb') as f:
-        #         scaler = pickle.load(f)  # load scaler  # load scaler
-        # except Exception as error:
-        #     print(error)
+        try:
+            agent.load(f'{models_folder}/dqn.h5') # load agent
+        except Exception as error:
+            print(error)
+        try:
+            with open(f'{rewards_folder}/scaler.pkl', 'rb') as f:
+                scaler = pickle.load(f)  # load scaler  # load scaler
+        except Exception as error:
+            print(error)
         # store the final value of the portfolio (end of episode)
         portfolio_value = []
 
