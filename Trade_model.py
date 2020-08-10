@@ -303,7 +303,7 @@ while True:
                     ib.sleep(0.1)
                 if cash_in_hand > (stock_price[i] * 50 * 4) and cash_in_hand > portolio_value \
                     and ((stock_owned[0] == 0 and i == 0) or (stock_owned[1] == 0 and i == 1)): 
-                  quantity = int((cash_in_hand/(stock_price[i] * 50))/4)
+                  quantity = int((cash_in_hand/(stock_price[i] * 50)))
                   
                   order = LimitOrder('BUY', quantity, stock_price[i]) #round(25 * round(stock_price[i]/25, 2), 2))
                   trade = ib.placeOrder(contract, order)
