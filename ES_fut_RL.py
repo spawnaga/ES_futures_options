@@ -428,9 +428,6 @@ def play_one_episode(agent, env):
         
         next_state, reward, done, info = env.step(action)
         # print(f'{k}) action = {action}, reward = {reward}')
-        # if float(info['cur_val']) < 20000:
-        #     continue
-        # else:
         # if (original[:2]!= next_state[:2]).any() :
         #     print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
         # original = next_state
@@ -462,10 +459,13 @@ def test_trade(agent, env):
     return info['cur_val']
 
 if __name__ == '__main__':
+    import os
+
+    path = os.getcwd() 
    
     # config
-    models_folder = './RL_trade_ES_futures/rl_trader_models_Sup/1_layer_BO_RSI_ATR_Close' #where models and scaler are saved
-    rewards_folder = './RL_trade_ES_futures/rl_trader_rewards_Sup/1_layer_BO_RSI_ATR_Close' #where results are saved
+    models_folder = f'{path}/rl_trader_models_Sup/1_layer_BO_RSI_ATR_Close' #where models and scaler are saved
+    rewards_folder = f'{path}/rl_trader_rewards_Sup/1_layer_BO_RSI_ATR_Close' #where results are saved
     num_episodes = 10 #number of loops per a cycle
     
     initial_investment = 2000
@@ -520,10 +520,7 @@ if __name__ == '__main__':
             print(error)
         # store the final value of the portfolio (end of episode)
         portfolio_value = []
-        # agent.epsilon = 1  # exploration rate
-        # agent.epsilon_min = 0.01
-        # agent.epsilon_decay = 0.995
-        # play the game num_episodes times
+
         if use == 'train':
             try:
                 for e in range(num_episodes):
@@ -581,10 +578,7 @@ if __name__ == '__main__':
             print(f'Number of random trades = {agent.random_trades} from {len(data)} or {round(100*agent.random_trades/len(data),0)}% and Epsilon = {agent.epsilon} and final value={val}' )
             break
 
-            
+      
 
-# stored_buffer=agent.memory.sample_batch()
-# reward=c['r']
-# reward=np.pad(reward, (0,16), 'constant')
-# Unstardized_reward1=scaler.inverse_transform(np.reshape(reward,(-1,24)))
+
 
