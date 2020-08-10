@@ -23,6 +23,21 @@ import math
 from sklearn.preprocessing import StandardScaler
 from ressup import ressup
 from ib_insync import util
+import tensorflow as tf
+gpus = tf.config.experimental.list_physical_devices('GPU')
+if gpus:
+    try:
+        for gpu in gpus:
+            tf.config.experimental.set_memory_growth(gpu, True)
+    except RuntimeError as e:
+        print(e)
+from tensorflow.compat.v1 import ConfigProto
+from tensorflow.compat.v1 import InteractiveSession
+
+config = ConfigProto()
+config.gpu_options.per_process_gpu_memory_fraction = 0.2
+config.gpu_options.allow_growth = True
+session = InteractiveSession(config=config)
 util.startLoop()
 
 print(' actions are 0 = sell, 1 = hold and, 2 = buy \
@@ -113,6 +128,7 @@ class get_data:
         return ES_df
 
     def option_history(self, contract):
+        ib.qualifyContracts(contract)
         df = pd.DataFrame(util.df(ib.reqHistoricalData(contract=contract, endDateTime=endDateTime, durationStr=No_days,
                                       barSizeSetting=interval, whatToShow = 'MIDPOINT', useRTH = False, keepUpToDate=False))[['date','close']])
         df.columns=['date',f"{contract.symbol}_{contract.right}_close"]
@@ -153,6 +169,7 @@ path = os.getcwd()
 models_folder = f'{path}/rl_trader_models_Sup/1_layer_BO_RSI_ATR_Close' #where models and scaler are saved
 rewards_folder = f'{path}/rl_trader_rewards_Sup/1_layer_BO_RSI_ATR_Close' #where results are saved
 name = f'{models_folder}/dqn.h5'
+
 model = mlp(10,9)
 model.load_weights(name)
 previous_action = ''
@@ -219,7 +236,7 @@ def flatten_position(contract):
             print(trade.orderStatus.status)
             c=len(ib.openOrders())
             print(f'Open orders = {c}')
-            if c==0: 
+            if c==0 or trade.orderStatus.status == 'Inactive': 
                 print('sell loop finished')
                 return
         
