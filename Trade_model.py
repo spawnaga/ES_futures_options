@@ -246,7 +246,6 @@ while True:
     cash_in_hand = float(ib.accountSummary()[22].value)
     portolio_value = float(ib.accountSummary()[29].value)
     data_raw = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000))),res.option_history(res.get_contract('P', 2000)))
-    print('in main loop')
     data = data_raw[['close', 'B_middle', 'B_lower', 'RSI', 'ATR', 'ES_C_close','ES_P_close']]
     stock_owned, call_contract, put_contract = option_position()
     
@@ -255,7 +254,6 @@ while True:
     action_list = list(map(list, itertools.product([0, 1, 2], repeat=2)))
     action=np.argmax(model.predict(state))
     action_vec = action_list[action]
-    print('befor i loop')
     buy_index = [] 
     sell_index = []
     
@@ -267,7 +265,6 @@ while True:
 
     if sell_index:
         for i in sell_index:
-            print('in sell loop')
             if not stock_owned[i] == 0:
                 contract= call_contract if i == 0 else put_contract
                 ib.qualifyContracts(contract)
@@ -287,19 +284,17 @@ while True:
                 while math.isnan(stock_price[i]):
                     stock_price[i] = ib.reqMktData(contract).ask+0.25
                     ib.sleep(0.1)
-                print(stock_price[i])
                 if cash_in_hand > (stock_price[i] * 50 * 4) and cash_in_hand > portolio_value / 4:
-                  print('in can buy loop')
                   quantity = int((cash_in_hand/(stock_price[i] * 50))/4)
                   
                   order = LimitOrder('BUY', quantity, stock_price[i]) #round(25 * round(stock_price[i]/25, 2), 2))
                   trade = ib.placeOrder(contract, order)
-                  g=1
+                  no_price_checking = 1
                   for c in ib.loopUntil(condition=0, timeout=120): # trade.orderStatus.status == "Filled"  or \
                       #trade.orderStatus.status == "Cancelled"
                       print(trade.orderStatus.status)
-                      print(g)
-                      g+=1
+                      print(no_price_checking)
+                      no_price_checking+=1
                       c=len(ib.openOrders())
                       print(f'Open orders = {c}')
                       ib.sleep(2)
@@ -312,9 +307,7 @@ while True:
                   can_buy = False
 
             
-    print(f'action from action lists = {action}, action_vector = {action_vec},\
-          no of contract position [Calls, Puts] = {stock_owned}, cash in hand\
-              = {cash_in_hand}')
+    print(f'action from action lists = {action}, action_vector = {action_vec}, no of contract position [Calls, Puts] = {stock_owned}, cash in hand= {cash_in_hand}')
     print(f'loop = {loop}')
     time.sleep(30)
     loop +=1
