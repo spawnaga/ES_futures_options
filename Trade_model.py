@@ -50,7 +50,7 @@ print('[0,0] [0,1] [1,0] [1,1] [0,2] ...etc')
 class get_data:
 
     def next_exp_weekday(self):
-        weekdays = {2: [5, 6, 0], 4: [0, 1, 2], 0: [3, 4]}
+        weekdays = {2: [5, 6, 0], 4: [0, 1, 2], 1: [3, 4]}
         today = datetime.today().weekday()
         for exp, day in weekdays.items():
             if today in day:
@@ -298,10 +298,11 @@ while True:
                 contract = call_contract if i == 0 else put_contract
                 ib.qualifyContracts(contract)
                 stock_price[i] = ib.reqMktData(contract).ask+0.25
+                
                 while math.isnan(stock_price[i]):
                     stock_price[i] = ib.reqMktData(contract).ask+0.25
                     ib.sleep(0.1)
-                if cash_in_hand > (stock_price[i] * 50 * 4) and cash_in_hand > portolio_value \
+                if cash_in_hand > (stock_price[i] * 50) and cash_in_hand > portolio_value \
                     and ((stock_owned[0] == 0 and i == 0) or (stock_owned[1] == 0 and i == 1)): 
                   quantity = int((cash_in_hand/(stock_price[i] * 50)))
                   

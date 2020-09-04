@@ -46,7 +46,7 @@ def maybe_make_dir(directory):
 class get_data:
 
     def next_exp_weekday(self):
-        weekdays = {2: [5, 6, 0], 4: [0, 1, 2], 0: [3, 4]}
+        weekdays = {2: [5, 6, 0], 4: [0, 1, 2], 1: [3, 4]}
         today = datetime.today().weekday()
         for exp, day in weekdays.items():
             if today in day:
@@ -482,7 +482,7 @@ if __name__ == '__main__':
     rewards_folder = f'{path}/rl_trader_rewards_Sup/1_layer_BO_RSI_ATR_Close' #where results are saved
     num_episodes = 10 #number of loops per a cycle
     
-    initial_investment = 200000
+    initial_investment = 2000
 
 
     maybe_make_dir(models_folder)
@@ -535,7 +535,7 @@ if __name__ == '__main__':
         # store the final value of the portfolio (end of episode)
         portfolio_value = []
 
-        if use == 'train':
+        if use == 'test':
             try:
                 for e in range(num_episodes):
                     t0 = datetime.now()
