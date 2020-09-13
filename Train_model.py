@@ -116,6 +116,7 @@ class get_data:
         ES_df['roll_max_cp']=ES_df['high'].rolling(20).max()
         ES_df['roll_min_cp']=ES_df['low'].rolling(20).min()
         ES_df['roll_max_vol']=ES_df['volume'].rolling(20).max()
+        ES_df['vol/roll_max']=ES_df['volume']/ES_df['roll_max_vol']
         ES_df['EMA_21-EMA_9']=ES_df['EMA_21']-ES_df['EMA_9']
         ES_df['EMA_200-EMA_50']=ES_df['EMA_200']-ES_df['EMA_50']
         ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
@@ -365,9 +366,9 @@ class DQNAgent(object):
       self.action_size = action_size
       self.memory = ReplayBuffer(state_size, action_size, size=500)
       self.gamma = 0.95  # discount rate
-      # self.epsilon = 1 # exploration rate
-      self.epsilon_min = 0.1
-      self.epsilon_decay = 0.001
+      self.epsilon = 10 # exploration rate
+      self.epsilon_min = 0.03
+      self.epsilon_decay = 0.01
       self.model = mlp(state_size, action_size)
       self.random_trades = 0
 
@@ -418,8 +419,9 @@ class DQNAgent(object):
       self.model.train_on_batch(states, target_full)
     
       if self.epsilon > self.epsilon_min:
-        self.epsilon = self.epsilon_min + (self.epsilon) * \
-          math.exp(-1 * env.cur_step * self.epsilon_decay)
+          self.epsilon = self.epsilon - self.epsilon_decay
+        # self.epsilon = self.epsilon_min + (self.epsilon) * \
+        #   math.exp(-1 * env.cur_step * self.epsilon_decay)
 
     
     def load(self, name):
@@ -432,7 +434,7 @@ class DQNAgent(object):
 def play_one_episode(agent, env):
     # note: after transforming states are already 1xD
     state = env.reset()
-    # original = state
+    original = state
     state = scaler.transform([state])
     done = False
     agent.random_trades = 0
@@ -441,11 +443,11 @@ def play_one_episode(agent, env):
         action = agent.act(state)
         
         next_state, reward, done, info = env.step(action)
-        # print(f'{k}) action = {action}, reward = {reward}')
-        # if (original[:2]!= next_state[:2]).any() :
-        #     print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
-        # original = next_state
-        # old_action = action
+        print(f'action = {action}, reward = {reward}')
+        if (original[:2]!= next_state[:2]).any() :
+            print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
+        original = next_state
+        old_action = action
         next_state = scaler.transform([next_state])
         agent.update_replay_memory(state, action, reward, next_state, done)
         agent.replay(batch_size)
@@ -464,8 +466,8 @@ def test_trade(agent, env):
         
         next_state, reward, done, info = env.step(action)
         
-        if (original[:2]!= next_state[:2]).any() :
-            print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
+        # if (original[:2]!= next_state[:2]).any() :
+        print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}, cur_val = {info["cur_val"]}')
         original = next_state
         next_state = scaler.transform([next_state])
         
@@ -513,7 +515,7 @@ if __name__ == '__main__':
         except:
             data_raw=pd.read_csv('./new_data.csv',index_col='date')
 
-        data = data_raw[['close', 'B_middle', 'B_lower', 'RSI', 'ATR', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
+        data = data_raw[[ 'RSI', 'ATR', 'EMA_21-EMA_9', 'EMA_200-EMA_50', 'vol/roll_max', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
         n_stocks = 2
         train_data = data
         batch_size = 100
@@ -522,7 +524,7 @@ if __name__ == '__main__':
         action_size = len(env.action_space)
         agent = DQNAgent(state_size, action_size)
         scaler = get_scaler(env)
-        agent.epsilon = 1
+        agent.epsilon = 10
         try:
             agent.load(f'{models_folder}/dqn.h5') # load agent
         except Exception as error:
@@ -545,13 +547,14 @@ if __name__ == '__main__':
                     print(f'Number of random trades = {agent.random_trades} from {len(train_data)} or {round(100*agent.random_trades/len(train_data),0)}% and Epsilon = {agent.epsilon}' )
                     dt = datetime.now() - t0
                     print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
+                    if val/ initial_investment < .8:
+                        print('succeded trdes less than 80%. Not pass saving this epsode')
+                        continue
+                    agent.save(f'{models_folder}/dqn.h5')
                     portfolio_value.append(val) # append episode end portfolio value
-                    if agent.epsilon >= agent.epsilon_min:
-                        agent.epsilon_min + (agent.epsilon) * \
-                            math.exp(-1 * env.cur_step * agent.epsilon_decay)
          
                 print(f'*****Loop finished, No. of succeded trades = {succeded_trades}, percentage = {succeded_trades/num_episodes*100}%')
-                agent.save(f'{models_folder}/dqn.h5')
+                
                 
                 
                 # save the scaler

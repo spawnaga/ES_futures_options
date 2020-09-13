@@ -102,9 +102,15 @@ class get_data:
                                      barSizeSetting=interval, whatToShow = 'TRADES', useRTH = False)
         ES_df = util.df(ES_df)
         ES_df.set_index('date',inplace=True)
+        ES_df.index = pd.to_datetime(ES_df.index)
+        ES_df['hours'] = ES_df.index.strftime('%H').astype(int)
+        ES_df['minutes'] = ES_df.index.strftime('%M').astype(int)
+        ES_df['hours + minutes'] = ES_df['hours']*100 + ES_df['minutes']
+        ES_df['Day_of_week'] = ES_df.index.dayofweek
         ES_df['Resistance'], ES_df['Support'] = self.res_sup(ES_df)
         ES_df['RSI'] = ta.RSI(ES_df['close'])
         ES_df['macd'],ES_df['macdsignal'],ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26, signalperiod=9)
+        ES_df['macd - macdsignal'] = ES_df['macd'] - ES_df['macdsignal']
         ES_df['MA_9']=ta.MA(ES_df['close'], timeperiod=9)
         ES_df['MA_21']=ta.MA(ES_df['close'], timeperiod=21)
         ES_df['MA_200']=ta.MA(ES_df['close'], timeperiod=200)
@@ -116,6 +122,7 @@ class get_data:
         ES_df['roll_max_cp']=ES_df['high'].rolling(20).max()
         ES_df['roll_min_cp']=ES_df['low'].rolling(20).min()
         ES_df['roll_max_vol']=ES_df['volume'].rolling(20).max()
+        ES_df['vol/max_vol'] = ES_df['volume']/ES_df['roll_max_vol']
         ES_df['EMA_21-EMA_9']=ES_df['EMA_21']-ES_df['EMA_9']
         ES_df['EMA_200-EMA_50']=ES_df['EMA_200']-ES_df['EMA_50']
         ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
@@ -256,11 +263,11 @@ class MultiStockEnv:
         
         # action permutations
         # returns a nested list with elements like:
-        # [0,0,0]
-        # [0,0,1]
-        # [0,0,2]
-        # [0,1,0]
-        # [0,1,1]
+        # [0,0]
+        # [1,0]
+        # [0,1]
+        # [1,1]
+        # [0,2]
         # etc.
         # 0 = sell
         # 1 = hold
@@ -363,10 +370,10 @@ class DQNAgent(object):
     def __init__(self, state_size, action_size):
       self.state_size = state_size
       self.action_size = action_size
-      self.memory = ReplayBuffer(state_size, action_size, size=500)
-      self.gamma = 0.95  # discount rate
+      self.memory = ReplayBuffer(state_size, action_size, size=1500)
+      self.gamma = 0.97  # discount rate
       # self.epsilon = 1 # exploration rate
-      self.epsilon_min = 0.1
+      self.epsilon_min = 0.2
       self.epsilon_decay = 0.001
       self.model = mlp(state_size, action_size)
       self.random_trades = 0
@@ -432,20 +439,20 @@ class DQNAgent(object):
 def play_one_episode(agent, env):
     # note: after transforming states are already 1xD
     state = env.reset()
-    # original = state
+    original = state
     state = scaler.transform([state])
     done = False
     agent.random_trades = 0
-    # old_action = 0
+    old_action = 0
     while not done:
         action = agent.act(state)
-        
         next_state, reward, done, info = env.step(action)
-        # print(f'{k}) action = {action}, reward = {reward}')
-        # if (original[:2]!= next_state[:2]).any() :
-        #     print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
-        # original = next_state
-        # old_action = action
+        # 
+        if (original[:2]!= next_state[:2]).any() :
+            print(f'action = {action}, actiontype = {env.action_list[action]}, reward = {reward}, end_value = {info["cur_val"]}')
+            print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
+        original = next_state
+        old_action = action
         next_state = scaler.transform([next_state])
         agent.update_replay_memory(state, action, reward, next_state, done)
         agent.replay(batch_size)
@@ -461,7 +468,7 @@ def test_trade(agent, env):
     done = False
     while not done:
         action = agent.act(state)
-        
+
         next_state, reward, done, info = env.step(action)
         
         if (original[:2]!= next_state[:2]).any() :
@@ -482,7 +489,7 @@ if __name__ == '__main__':
     rewards_folder = f'{path}/rl_trader_rewards_Sup/1_layer_BO_RSI_ATR_Close' #where results are saved
     num_episodes = 10 #number of loops per a cycle
     
-    initial_investment = 2000
+    initial_investment = 4000
 
 
     maybe_make_dir(models_folder)
@@ -513,16 +520,16 @@ if __name__ == '__main__':
         except:
             data_raw=pd.read_csv('./new_data.csv',index_col='date')
 
-        data = data_raw[['close', 'B_middle', 'B_lower', 'RSI', 'ATR', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
+        data = data_raw[['Day_of_week', 'hours + minutes', 'EMA_21-EMA_9', 'EMA_200-EMA_50', 'RSI', 'ATR','macd - macdsignal','macdhist', 'vol/max_vol', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
         n_stocks = 2
         train_data = data
-        batch_size = 100
+        batch_size = 1000
         env = MultiStockEnv(train_data, initial_investment) # start envirnoment
         state_size = env.state_dim
         action_size = len(env.action_space)
         agent = DQNAgent(state_size, action_size)
         scaler = get_scaler(env)
-        agent.epsilon = 1
+        agent.epsilon = 10
         try:
             agent.load(f'{models_folder}/dqn.h5') # load agent
         except Exception as error:

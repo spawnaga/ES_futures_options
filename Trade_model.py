@@ -171,7 +171,7 @@ rewards_folder = f'{path}/rl_trader_rewards_Sup/1_layer_BO_RSI_ATR_Close' #where
 name = f'{models_folder}/dqn.h5'
 
 model = mlp(10,9)
-model.load_weights(name)
+
 previous_action = ''
 
 with open(f'{rewards_folder}/scaler.pkl', 'rb') as f:
@@ -259,13 +259,12 @@ def option_position():
 loop = 1
 
 while True:    
-    
+    model.load_weights(name)
     cash_in_hand = float(ib.accountSummary()[22].value)
     portolio_value = float(ib.accountSummary()[29].value)
     data_raw = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000))),res.option_history(res.get_contract('P', 2000)))
     data = data_raw[['close', 'B_middle', 'B_lower', 'RSI', 'ATR', 'ES_C_close','ES_P_close']]
     stock_owned, call_contract, put_contract = option_position()
-    
     state, stock_price, cash_in_hand = reset(data, stock_owned, cash_in_hand)
     state = scaler.transform(state.reshape(-1,10))
     action_list = list(map(list, itertools.product([0, 1, 2], repeat=2)))
@@ -329,5 +328,5 @@ while True:
             
     print(f'action from action lists = {action}, action_vector = {action_vec}, no of contract position [Calls, Puts] = {stock_owned}, cash in hand= {cash_in_hand}')
     print(f'loop = {loop}')
-    time.sleep(30)
+    time.sleep(90)
     loop +=1
