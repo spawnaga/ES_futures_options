@@ -266,7 +266,7 @@ while True:
     data = data_raw[['close', 'B_middle', 'B_lower', 'RSI', 'ATR', 'ES_C_close','ES_P_close']]
     stock_owned, call_contract, put_contract = option_position()
     state, stock_price, cash_in_hand = reset(data, stock_owned, cash_in_hand)
-    state = scaler.transform(state.reshape(-1,10))
+    state = scaler.transform(state.reshape(-1,len(state)+4))
     action_list = list(map(list, itertools.product([0, 1, 2], repeat=2)))
     action=np.argmax(model.predict(state))
     action_vec = action_list[action]

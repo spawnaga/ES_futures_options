@@ -320,7 +320,7 @@ def trade(ES, hasNewBar=None):
                   can_buy = False
 
             
-    # print(f'action from action lists = {action}, action_vector = {action_vec}, no of contract position [Calls, Puts] = {stock_owned}, cash in hand= {cash_in_hand}')
+    print(f'action from action lists = {action}, action_vector = {action_vec}, no of contract position [Calls, Puts] = {stock_owned}, cash in hand= {cash_in_hand}')
 
 
 if __name__ == "__main__":
