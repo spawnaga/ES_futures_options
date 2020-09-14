@@ -61,7 +61,7 @@ class get_data:
         return date_to_return.strftime('%Y%m%d')
 
     def get_strikes_and_expiration(self):
-        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
+        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                                 currency='USD')
         ib.qualifyContracts(ES)
         expiration = self.next_weekday(datetime.today(), self.next_exp_weekday())
@@ -95,7 +95,7 @@ class get_data:
         return res, sup
 
     def ES(self):
-        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
+        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                                 currency='USD')
         ib.qualifyContracts(ES)
         ES_df = ib.reqHistoricalData(contract=ES, endDateTime=endDateTime, durationStr=No_days,
@@ -503,7 +503,7 @@ if __name__ == '__main__':
             from talib import MA_Type
             ib = IB()
             ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
-            ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
+            ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                         currency='USD')
             ib.qualifyContracts(ES)
             endDateTime = ''

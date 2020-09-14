@@ -61,7 +61,7 @@ class get_data:
         return date_to_return.strftime('%Y%m%d')
 
     def get_strikes_and_expiration(self):
-        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
+        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                                 currency='USD')
         ib.qualifyContracts(ES)
         expiration = self.next_weekday(datetime.today(), self.next_exp_weekday())
@@ -95,7 +95,7 @@ class get_data:
         return res, sup
 
     def ES(self):
-        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
+        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                                 currency='USD')
         ib.qualifyContracts(ES)
         ES_df = ib.reqHistoricalData(contract=ES, endDateTime=endDateTime, durationStr=No_days,
@@ -250,7 +250,7 @@ class MultiStockEnv:
         # data
         self.stock_price_history = data.iloc[:,-2:].values
         self.n_step, self.state_dim = data.shape
-        
+        self.atr=data_raw.loc[:,'ATR']
         # instance attributes
         self.initial_investment = initial_investment
         self.cur_step = None
@@ -316,7 +316,12 @@ class MultiStockEnv:
           sell_index.append(i)
         elif a == 2:
           buy_index.append(i)
-      
+      # print(data_raw["low"].iloc[self.cur_step], data_raw["close"].iloc[self.cur_step-1], 0.75 * data_raw["ATR"].iloc[self.cur_step-1], data_raw["ATR"].iloc[self.cur_step-3], self.stock_owned[0], sell_index)
+      if data_raw["low"].iloc[self.cur_step] < data_raw["close"].iloc[self.cur_step-1] - (2 * data_raw["ATR"].iloc[self.cur_step-1] if data_raw["ATR"].iloc[self.cur_step-1] > data_raw["ATR"].iloc[self.cur_step-3] else data_raw["ATR"].iloc[self.cur_step-3] ) and self.stock_owned[0] !=0 and sell_index==[]:
+          sell_index.append(0)
+    
+      elif data_raw["high"].iloc[self.cur_step] >  data_raw["close"].iloc[self.cur_step-1] + (2 * data_raw["ATR"].iloc[self.cur_step-1] if data_raw["ATR"].iloc[self.cur_step-1] > data_raw["ATR"].iloc[self.cur_step-3] else data_raw["ATR"].iloc[self.cur_step-3] ) and self.stock_owned[1] !=0 and sell_index==[]:
+          sell_index.append(1)
       # sell any stocks we want to sellself.stock_owned[1]
       # then buy any stocks we want to buy
       if sell_index:
@@ -448,9 +453,9 @@ def play_one_episode(agent, env):
         action = agent.act(state)
         next_state, reward, done, info = env.step(action)
         # 
-        if (original[:2]!= next_state[:2]).any() :
-            print(f'action = {action}, actiontype = {env.action_list[action]}, reward = {reward}, end_value = {info["cur_val"]}')
-            print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
+        # if (original[:2]!= next_state[:2]).any() :
+        #     print(f'action = {action}, actiontype = {env.action_list[action]}, reward = {reward}, end_value = {info["cur_val"]}')
+        #     print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
         original = next_state
         old_action = action
         next_state = scaler.transform([next_state])
@@ -508,7 +513,7 @@ if __name__ == '__main__':
             from talib import MA_Type
             ib = IB()
             ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
-            ES = Future(symbol='ES', lastTradeDateOrContractMonth='20200918', exchange='GLOBEX',
+            ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                         currency='USD')
             ib.qualifyContracts(ES)
             endDateTime = ''
@@ -529,7 +534,7 @@ if __name__ == '__main__':
         action_size = len(env.action_space)
         agent = DQNAgent(state_size, action_size)
         scaler = get_scaler(env)
-        agent.epsilon = 10
+        agent.epsilon = 5
         try:
             agent.load(f'{models_folder}/dqn.h5') # load agent
         except Exception as error:
@@ -542,7 +547,7 @@ if __name__ == '__main__':
         # store the final value of the portfolio (end of episode)
         portfolio_value = []
 
-        if use == 'test':
+        if use == 'train':
             try:
                 for e in range(num_episodes):
                     t0 = datetime.now()
@@ -552,6 +557,9 @@ if __name__ == '__main__':
                     print(f'Number of random trades = {agent.random_trades} from {len(train_data)} or {round(100*agent.random_trades/len(train_data),0)}% and Epsilon = {agent.epsilon}' )
                     dt = datetime.now() - t0
                     print(f"episode: {e + 1}/{num_episodes}, episode end value: {val:.2f}, duration: {dt}")
+                    if val/ initial_investment < .8:
+                        print('succeded trdes less than 80%. Not pass saving this epsode')
+                        continue
                     portfolio_value.append(val) # append episode end portfolio value
                     if agent.epsilon >= agent.epsilon_min:
                         agent.epsilon_min + (agent.epsilon) * \
