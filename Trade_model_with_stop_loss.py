@@ -248,7 +248,7 @@ def trade(ES, hasNewBar=None):
     options_array = np.array([call_contract_price, put_contract_price])
 
     data_raw = res.options(res.options(res.ES(ES)))
-    data = data_raw[['Day_of_week', 'hours + minutes', 'EMA_21-EMA_9', 'EMA_200-EMA_50', 'RSI', 'ATR','macd - macdsignal','macdhist', 'vol/max_vol']].iloc[-1,:].values
+    data = data_raw[['hours + minutes', 'EMA_21-EMA_9', 'EMA_200-EMA_50', 'RSI', 'ATR', 'vol/max_vol']].iloc[-1,:].values
 
     data = np.append(data,options_array,axis=0)
     #choose parameters to drop if not needed

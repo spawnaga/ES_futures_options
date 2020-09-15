@@ -525,7 +525,7 @@ if __name__ == '__main__':
         except:
             data_raw=pd.read_csv('./new_data.csv',index_col='date')
 
-        data = data_raw[['Day_of_week', 'hours + minutes', 'EMA_21-EMA_9', 'EMA_200-EMA_50', 'RSI', 'ATR','macd - macdsignal','macdhist', 'vol/max_vol', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
+        data = data_raw[['hours + minutes', 'EMA_21-EMA_9', 'EMA_200-EMA_50', 'RSI', 'ATR', 'vol/max_vol', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
         n_stocks = 2
         train_data = data
         batch_size = 1000
