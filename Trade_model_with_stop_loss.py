@@ -24,6 +24,8 @@ from sklearn.preprocessing import StandardScaler
 from ressup import ressup
 from ib_insync import util
 import tensorflow as tf
+import nest_asyncio
+nest_asyncio.apply()
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
     try:
@@ -38,7 +40,7 @@ config = ConfigProto()
 config.gpu_options.per_process_gpu_memory_fraction = 0.2
 config.gpu_options.allow_growth = True
 session = InteractiveSession(config=config)
-util.startLoop()
+# util.startLoop()
 
 
 class get_data:
@@ -320,7 +322,7 @@ def trade(ES, hasNewBar=None):
                   can_buy = False
 
             
-    # print(f'action from action lists = {action}, action_vector = {action_vec}, no of contract position [Calls, Puts] = {stock_owned}, cash in hand= {cash_in_hand}')
+    print(f'action from action lists = {action}, action_vector = {action_vec}, no of contract position [Calls, Puts] = {stock_owned}, cash in hand= {cash_in_hand}')
 
 
 if __name__ == "__main__":

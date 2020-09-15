@@ -452,10 +452,10 @@ def play_one_episode(agent, env):
     while not done:
         action = agent.act(state)
         next_state, reward, done, info = env.step(action)
-        # 
-        # if (original[:2]!= next_state[:2]).any() :
-        #     print(f'action = {action}, actiontype = {env.action_list[action]}, reward = {reward}, end_value = {info["cur_val"]}')
-        #     print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
+
+        if (original[:2]!= next_state[:2]).any() :
+            print(f'action = {action}, actiontype = {env.action_list[action]}, reward = {reward}, end_value = {info["cur_val"]}')
+            print(f'holding calls = {next_state[0]} , puts = {next_state[1]} and action = {action} reward = {reward}')
         original = next_state
         old_action = action
         next_state = scaler.transform([next_state])
