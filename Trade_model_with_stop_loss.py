@@ -365,8 +365,8 @@ if __name__ == "__main__":
     ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr=No_days,
                                  barSizeSetting=interval, whatToShow = 'TRADES', useRTH = False, keepUpToDate=True)
     stock_owned, call_contract, put_contract = option_position()
-    call_option_price = ib.reqMktData(call_contract)
-    put_option_price = ib.reqMktData(put_contract)
+    call_option_price = ib.reqMktData(call_contract, '', False, False)
+    put_option_price = ib.reqMktData(put_contract, '', False, False)
     trade(ES)
     
     while ib.waitOnUpdate():
