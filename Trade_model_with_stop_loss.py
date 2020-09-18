@@ -126,16 +126,7 @@ class get_data:
         
         return ES_df
 
-    def option_history(self, contract):
-        ib.qualifyContracts(contract)
-        df = pd.DataFrame(util.df(ib.reqHistoricalData(contract=contract, endDateTime='', durationStr=No_days,
-                                      barSizeSetting=interval, whatToShow = 'MIDPOINT', useRTH = False, keepUpToDate=True))[['date','close']])
-        df.columns=['date',f"{contract.symbol}_{contract.right}_close"]
-        df.set_index('date',inplace=True)
-        return df
 
-    def options(self, df1=None,df2=None):
-        return df1
 
 def mlp(input_dim, n_action, n_hidden_layers=1, hidden_dim=5):
     """ A multi-layer perceptron """
@@ -197,7 +188,7 @@ def flatten_position(contract, price):
         totalQuantity = abs(each.position)
         price = price.bid - 0.25 
         while math.isnan(price):
-            price = ib.reqMktData(each.contract).bid-0.25
+            price = price.bid - 0.25
             ib.sleep(0.1)
         print(f'price = {price}')
         order = LimitOrder(action, totalQuantity, price) #round(25 * round(stock_price[i]/25, 2), 2))
@@ -247,7 +238,7 @@ def trade(ES, hasNewBar=None):
     put_contract_price = (put_option_price.ask + put_option_price.bid)/2
     options_array = np.array([call_contract_price, put_contract_price])
 
-    data_raw = res.options(res.options(res.ES(ES)))
+    data_raw = res.ES(ES)
     data = data_raw[['hours + minutes', 'EMA_21-EMA_9', 'EMA_200-EMA_50', 'RSI', 'ATR', 'vol/max_vol']].iloc[-1,:].values
 
     data = np.append(data,options_array,axis=0)
