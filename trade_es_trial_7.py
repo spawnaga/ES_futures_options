@@ -119,22 +119,29 @@ def error():
     global put_portfolio
     global call_portfolio_price
     global put_portfolio_price
+    try:
+        ib.cancelHistoricalData(ES)
+        ib.cancelMktData(call_option_price)
+        ib.cancelMktData(put_option_price)
+        # if call_portfolio_price :
+        #
+        #     ib.cancelMktData(call_portfolio_price)
+        #
+        # if put_portfolio_price:
+        #     ib.cancelMktData(put_portfolio_price)
 
-    ib.cancelHistoricalData(ES)
-    ib.cancelMktData(call_option_price)
-    ib.cancelMktData(put_option_price)
-    if call_portfolio_price :
+        ib.disconnect()
 
-        ib.cancelMktData(call_portfolio_price)
+        print("trying to connect")
+        ib.sleep(5)
+        connect()
+    except Exception as e:
+        print(e)
+        ib.disconnect()
 
-    if put_portfolio_price:
-        ib.cancelMktData(put_portfolio_price)
-
-    ib.disconnect()
-
-    print("trying to connect")
-    ib.sleep(5)
-    connect()
+        print("trying to connect")
+        ib.sleep(5)
+        connect()
 class all_events:
     def __init__(self):
         self.call_position = None
@@ -209,11 +216,12 @@ def flatten_position(portfolio, contract, price):
     print(f'price = {price.bid}')
     print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
     order = LimitOrder(action, totalQuantity, price.bid - 0.25)
-    trade = ib.placeOrder(contract, order)
-    print(trade.orderStatus.status)
-    ib.sleep(5)
+    # trade = ib.placeOrder(contract, order)
+    print(contract, order)
+    # print(trade.orderStatus.status)
+    # ib.sleep(5)
     # if trade.orderStatus.status == 'Filled' or trade.orderStatus.status == 'Inactive':
-    print('sell loop finished')
+    # print('sell loop finished')
     return
     # else:
     #     ib.cancelOrder(order)
@@ -253,6 +261,7 @@ def trade(ES, hasNewBar=None, p=-1):
     global call_portfolio_price
     global put_portfolio_price
     try:
+
         buy_index = []
         sell_index = []
         tickers_signal = "Hold"
@@ -278,7 +287,7 @@ def trade(ES, hasNewBar=None, p=-1):
 
         print(df["high"].iloc[-1], df["low"].iloc[-1], df["roll_max_cp"].iloc[-2], df["roll_max_cp"].iloc[-2],
               df["volume"].iloc[-1], df["roll_max_vol"].iloc[-2], df["close"].iloc[-1],
-              df["close"].iloc[-2] - (1.5 * df["ATR"].iloc[-2]), call_option_volume[-1], call_option_volume.max() / 2)
+              df["close"].iloc[-2] - (1.5 * df["ATR"].iloc[-2]), call_option_volume[-1], call_option_volume.max() )
         if df["high"].iloc[-1] >= df["roll_max_cp"].iloc[-2] and \
                 df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2] and \
                 holding_position == 0 and buy_index == []:
@@ -310,8 +319,7 @@ def trade(ES, hasNewBar=None, p=-1):
 
         elif (df["close"].iloc[-1] < df["close"].iloc[-2] - (1.5 * df["ATR"].iloc[-2]) \
               or (df["close"].iloc[-1] < df["low"].iloc[-2] and \
-                  df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2]) or \
-              call_option_volume[-1] <= call_option_volume.max() / 2) and \
+                  df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2])) and \
                 holding_position != 0 and open_orders == 0 and \
                 sell_index == [] and buy_index == []:
             print('1 ************************')
@@ -320,8 +328,7 @@ def trade(ES, hasNewBar=None, p=-1):
 
         elif (df["close"].iloc[-1] > df["close"].iloc[-2] + (1.5 * df["ATR"].iloc[-2]) \
               or (df["close"].iloc[-1] > df["high"].iloc[-2] and \
-                  df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2]) or \
-              put_option_volume[-1] <= put_option_volume.max() / 2) and \
+                  df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2])) and \
                 holding_position != 0 and open_orders == 0 and sell_index == [] and buy_index == []:
             print('2 ************************')
             tickers_signal = "sell put"
@@ -340,7 +347,7 @@ def trade(ES, hasNewBar=None, p=-1):
                     ib.qualifyContracts(contract)
                     price = call_portfolio_price if contract.right == 'C' else put_portfolio_price
                     flatten_position(call_portfolio if i ==0 else put_portfolio, contract, price)
-                    ib.sleep(0)
+
                     cash_in_hand = float(ib.accountSummary()[5].value)
                     stock_owned, call_contract, put_contract = option_position()
                     sell_index = []
@@ -358,9 +365,10 @@ def trade(ES, hasNewBar=None, p=-1):
                     quantity = 1  # int((cash_in_hand/(options_array[i] * 50)))
 
                     order = LimitOrder('BUY', quantity, options_array[i])  # round(25 * round(options_array[i]/25, 2), 2))
-                    trade = ib.placeOrder(contract, order)
+                    # trade = ib.placeOrder(contract, order)
                     print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
-                    print(trade.orderStatus.status)
+                    print(contract, order)
+                    # print(trade.orderStatus.status)
                     stock_owned, call_contract, put_contract = option_position()
 
                     buy_index = []
@@ -463,6 +471,7 @@ if __name__ == "__main__":
 
 
     try:
+
         call_option_price = ib.reqMktData(res.get_contract('C', 2000), '', False, False)
         put_option_price = ib.reqMktData(res.get_contract('P', 2000), '', False, False)
 
@@ -476,6 +485,7 @@ if __name__ == "__main__":
         put_option_volume = roll_contract(put_option_volume, put_option_price.bidSize)
         trade(ES)
         ES.updateEvent += trade
+        ib.errorEvent += error()
         ib.run()
     except Exception as e:
         print(e)
