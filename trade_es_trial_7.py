@@ -287,7 +287,7 @@ def trade(ES, hasNewBar=None, p=-1):
     elif (df["close"].iloc[-1] < df["close"].iloc[-2] - (1.5 * df["ATR"].iloc[-2]) \
           or (df["close"].iloc[-1] < df["low"].iloc[-2] and \
               df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2]) or \
-          call_option_volume[-1] <= call_option_volume.max() / 2) and \
+          call_option_volume[-1] <= call_option_volume.max() / 6) and \
             holding_position != 0 and open_orders == 0 and \
             sell_index == [] and buy_index == []:
         print('1 ************************')
@@ -297,7 +297,7 @@ def trade(ES, hasNewBar=None, p=-1):
     elif (df["close"].iloc[-1] > df["close"].iloc[-2] + (1.5 * df["ATR"].iloc[-2]) \
           or (df["close"].iloc[-1] > df["high"].iloc[-2] and \
               df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2]) or \
-          put_option_volume[-1] <= put_option_volume.max() / 2) and \
+          put_option_volume[-1] <= put_option_volume.max() / 6) and \
             holding_position != 0 and open_orders == 0 and sell_index == [] and buy_index == []:
         print('2 ************************')
         tickers_signal = "sell put"
