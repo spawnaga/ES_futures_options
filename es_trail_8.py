@@ -5,8 +5,8 @@ import asyncio
 from datetime import datetime, timedelta
 import talib as ta
 from talib import MA_Type
-from ressup import ressup
 from ib_insync import *
+from ressup import ressup
 import nest_asyncio
 nest_asyncio.apply()
 
@@ -110,11 +110,11 @@ class Trade():
                                   timeout=10)
         self.option_position()
         self.call_option_price = ib.reqMktData(self.call_contract, '', False, False)
-        self.put_option_price = ib.reqMktData(self.call_contract, '', False, False)
+        self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)
         self.call_option_volume = self.roll_contract(self.call_option_volume, self.call_option_price.bidSize)
         self.put_option_volume = self.roll_contract(self.put_option_volume, self.put_option_price.bidSize)
 
-        self.account_update()
+        # self.account_update()
 
 
 
@@ -166,8 +166,8 @@ class Trade():
         buy_index = []
         sell_index = []
         tickers_signal = "Hold"
-        cash_in_hand = float(self.account[22].value)
-        portolio_value = float(self.account[29].value)
+        cash_in_hand = float(ib.accountSummary()[22].value)
+        portolio_value = float(ib.accountSummary()[29].value)
 
         call_contract_price = (self.call_option_price.ask + self.call_option_price.bid) / 2
         put_contract_price = (self.put_option_price.ask + self.put_option_price.bid) / 2
@@ -181,7 +181,7 @@ class Trade():
             ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol']].tail()
 
         print(
-            f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {self.account[32].value}, realized PNL = {self.account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_array}')
+            f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {ib.accountSummary()[32].value}, realized PNL = {ib.accountSummary()[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_array}')
         if df["high"].iloc[-1] >= df["roll_max_cp"].iloc[-2] and \
                 df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2] and \
                 len(ib.portfolio()) == 0 and buy_index == []:
@@ -238,13 +238,17 @@ class Trade():
         if sell_index:
 
             for i in sell_index:
-                if (self.stock_owned[i] != 0 and i == 0) and len(ib.reqAllOpenOrders()) == 0:
+                print(self.stock_owned[i])
+                print("$$$$$$$$$$$$$$$$$$$$")
+                if ((self.stock_owned[i] != 0 & i == 0) or (self.stock_owned[i] != 0 & i == 1) ) and len(ib.reqAllOpenOrders()) == 0:
+                    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
                     contract = self.call_contract if i == 0 else self.call_contract
                     ib.qualifyContracts(contract)
                     price = self.call_option_price if i == 0 else self.put_option_price
+                    print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
                     self.flatten_position(contract, price)
                     ib.sleep(0)
-                    cash_in_hand = float(self.account[5].value)
+                    cash_in_hand = float(ib.accountSummary()[5].value)
                     sell_index = []
 
         if buy_index:
@@ -290,15 +294,15 @@ class Trade():
         option_vol[-1] = value
         return option_vol
 
-    def account_update(self, value = None):
-        self.account = ib.accountSummary()
+    # def account_update(self, value = None):
+    #     self.account = ib.accountSummary()
 
 
 
 
 def main():
     ib.positionEvent += trading.option_position
-    ib.accountValueEvent += trading.account_update
+    # ib.accountValueEvent += trading.account_update
     ib.errorEvent += trading.error
     trading.ES.updateEvent += trading.trade
     ib.run()
