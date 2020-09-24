@@ -142,7 +142,7 @@ class Trade():
 
             return
 
-    def option_position(self,event=None):
+    def option_position(self, event=None):
         self.stock_owned = np.zeros(2)
         position = ib.portfolio()
         call_position = None
@@ -166,6 +166,8 @@ class Trade():
         buy_index = []
         sell_index = []
         tickers_signal = "Hold"
+        ib.sleep(0)
+        self.option_position()
         cash_in_hand = float(ib.accountSummary()[22].value)
         portolio_value = float(ib.accountSummary()[29].value)
 
@@ -216,8 +218,8 @@ class Trade():
         elif (df["close"].iloc[-1] < df["close"].iloc[-2] - (1.5 * df["ATR"].iloc[-2]) \
               or (df["close"].iloc[-1] < df["low"].iloc[-2] and \
                   df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2]) or \
-              self.call_option_volume[-1] <= self.call_option_volume.max() / 2) and \
-                len(ib.portfolio()) != 0 and len(ib.reqAllOpenOrders()) == 0 and \
+              2 <= self.call_option_volume[-1] <= self.call_option_volume.max() / 4) and \
+                self.stock_owned[0] != 0 and len(ib.portfolio()) != 0 and len(ib.reqAllOpenOrders()) == 0 and \
                 sell_index == [] and buy_index == []:
             print('1 ************************')
             tickers_signal = "sell call"
@@ -226,26 +228,26 @@ class Trade():
         elif (df["close"].iloc[-1] > df["close"].iloc[-2] + (1.5 * df["ATR"].iloc[-2]) \
               or (df["close"].iloc[-1] > df["high"].iloc[-2] and \
                   df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2]) or \
-              self.put_option_volume[-1] <= self.put_option_volume.max() / 2) and \
-                len(ib.portfolio()) != 0 and len(ib.reqAllOpenOrders()) == 0 and sell_index == [] and buy_index == []:
+              2 <= self.put_option_volume[-1] <= self.put_option_volume.max() / 4) and \
+                self.stock_owned[1] != 0 and len(ib.portfolio()) != 0 and len(ib.reqAllOpenOrders()) == 0 and sell_index == [] and buy_index == []:
             print('2 ************************')
             tickers_signal = "sell put"
             sell_index.append(1)
 
         print(tickers_signal)
-        print('********************')
+        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
         if sell_index:
 
             for i in sell_index:
                 print(self.stock_owned[i])
-                print("$$$$$$$$$$$$$$$$$$$$")
+
                 if ((self.stock_owned[i] != 0 & i == 0) or (self.stock_owned[i] != 0 & i == 1) ) and len(ib.reqAllOpenOrders()) == 0:
-                    print("%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
-                    contract = self.call_contract if i == 0 else self.call_contract
+
+                    contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = self.call_option_price if i == 0 else self.put_option_price
-                    print("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^")
+
                     self.flatten_position(contract, price)
                     ib.sleep(0)
                     cash_in_hand = float(ib.accountSummary()[5].value)
@@ -301,7 +303,7 @@ class Trade():
 
 
 def main():
-    ib.positionEvent += trading.option_position
+    # ib.positionEvent += trading.option_position
     # ib.accountValueEvent += trading.account_update
     ib.errorEvent += trading.error
     trading.ES.updateEvent += trading.trade
