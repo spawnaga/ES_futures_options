@@ -8,7 +8,8 @@ Created on Mon Jul 27 18:35:32 2020
 
 import numpy as np
 import pandas as pd
-
+import talib as ta
+from talib import MA_Type
 import sys
 import asyncio
 from datetime import datetime, timedelta
@@ -111,31 +112,29 @@ class get_data:
         return ES_df
 
 def error(reqId =None, errorCode = None, errorString = None, contract = None):
+    global data
     global call_option_price
     global put_option_price
+    global buy_index
+    global sell_index
     global call_option_volume
     global put_option_volume
+    global account
     global call_portfolio
     global put_portfolio
     global call_portfolio_price
     global put_portfolio_price
 
     if errorCode == 10197:
-        call = res.get_contract('C', 2000)
-        put = res.get_contract('P', 2000)
-        call_option_price = ib.reqMktData(call , '', False, False)
-        put_option_price = ib.reqMktData(put , '', False, False)
+        global ib
+        for task in asyncio.Task.all_tasks():
+            task.cancel()
+        ib.disconnect()
+        ib.sleep(3)
+        onBarUpdate()
+        main()
 
-        call_option_volume = roll_contract(call_option_volume, call_option_price.bidSize)
-        put_option_volume = roll_contract(put_option_volume, put_option_price.bidSize)
 
-        ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr=No_days,
-                                  barSizeSetting=interval, whatToShow='TRADES', useRTH=False, keepUpToDate=True,
-                                  timeout=10)
-        call_option_volume = roll_contract(call_option_volume, call_option_price.bidSize)
-        put_option_volume = roll_contract(put_option_volume, put_option_price.bidSize)
-        
-            
 class all_events:
     def __init__(self):
         self.call_position = None
@@ -210,9 +209,10 @@ def flatten_position(portfolio, contract, price):
     print(f'price = {price.bid}')
     print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
     order = LimitOrder(action, totalQuantity, price.bid - 0.25)
-    # trade = ib.placeOrder(contract, order)
-    print(contract, order)
-    # print(trade.orderStatus.status)
+    trade = ib.placeOrder(contract, order)
+    # print(contract,
+    #       order)
+    print(trade.orderStatus.status)
     # ib.sleep(5)
     # if trade.orderStatus.status == 'Filled' or trade.orderStatus.status == 'Inactive':
     # print('sell loop finished')
@@ -269,6 +269,8 @@ def trade(ES, hasNewBar=None, p=-1):
     call_option_volume = roll_contract(call_option_volume, call_option_price.bidSize)
     put_option_volume = roll_contract(put_option_volume, put_option_price.bidSize)
     # options_bid_volume = np.array([call_option_volume,put_option_volume])
+    if ES == [] :
+        ib.sleep(0)
     data_raw = res.ES(ES)
     open_orders = len(ib.reqAllOpenOrders())
     holding_position = len(ib.portfolio())
@@ -276,8 +278,8 @@ def trade(ES, hasNewBar=None, p=-1):
     df = data_raw[['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol', 'macd',
                    'macdsignal']].tail()
 
-    # print(
-    #     f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, realized PNL = {account[33].value}, holding = {events.stock_owned[0]} calls and {events.stock_owned[1]} puts and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_array}')
+    print(
+        f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, realized PNL = {account[33].value}, holding = {events.stock_owned[0]} calls and {events.stock_owned[1]} puts and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_array}')
 
     print(df["high"].iloc[-1], df["low"].iloc[-1], df["roll_max_cp"].iloc[-2], df["roll_max_cp"].iloc[-2],
           df["volume"].iloc[-1], df["roll_max_vol"].iloc[-2], df["close"].iloc[-1],
@@ -333,7 +335,7 @@ def trade(ES, hasNewBar=None, p=-1):
     print(tickers_signal)
 
     if sell_index:
-        
+
         for i in sell_index:
             if ((stock_owned[0] != 0 and i == 0) or (stock_owned[1] != 0 and i == 1)) and open_orders == 0 and not holding_position == 0:
 
@@ -447,10 +449,10 @@ def trade(ES, hasNewBar=None, p=-1):
                 quantity = 1  # int((cash_in_hand/(options_array[i] * 50)))
 
                 order = LimitOrder('BUY', quantity, options_array[i])  # round(25 * round(options_array[i]/25, 2), 2))
-                # trade = ib.placeOrder(contract, order)
+                trade = ib.placeOrder(contract, order)
                 print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
-                print(contract, order)
-                # print(trade.orderStatus.status)
+                # print(contract, order)
+                print(trade.orderStatus.status)
                 stock_owned, call_contract, put_contract = option_position()
 
                 buy_index = []
@@ -507,17 +509,18 @@ def onBarUpdate(portfolio=None):
         call_portfolio_price = ib.reqMktData(contract) if not call_portfolio == None else None
         put_portfolio_price = ib.reqMktData(contract) if not put_portfolio == None else None
 
-if __name__ == "__main__":
+def main():
     global call_option_price
     global put_option_price
     global call_option_volume
     global put_option_volume
-    import talib as ta
-    from talib import MA_Type
+    global events
     global call_portfolio
     global put_portfolio
     global call_portfolio_price
     global put_portfolio_price
+    global ib
+    global res
     events = all_events()
     global account
     ib = IB()
@@ -527,8 +530,8 @@ if __name__ == "__main__":
         print('unable to connect try to reconnect ...')
         ib.sleep(5)
     print('isconnected? ' , ib.isConnected())
-    onBarUpdate()
 
+    onBarUpdate()
     call_option_volume = np.ones(20)
     put_option_volume = np.ones(20)
     events.stock_owned = np.zeros(2)
@@ -562,6 +565,7 @@ if __name__ == "__main__":
     ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr=No_days,
                       barSizeSetting=interval, whatToShow='TRADES', useRTH=False, keepUpToDate=True,
                       timeout=10)
+    print(ES)
     call_option_volume = roll_contract(call_option_volume, call_option_price.bidSize)
     put_option_volume = roll_contract(put_option_volume, put_option_price.bidSize)
     trade(ES)
@@ -572,3 +576,7 @@ if __name__ == "__main__":
 
 
 
+
+if __name__ == "__main__":
+    while True:
+        main()
