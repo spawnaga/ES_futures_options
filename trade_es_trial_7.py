@@ -13,7 +13,6 @@ from talib import MA_Type
 import sys
 import asyncio
 from datetime import datetime, timedelta
-import math
 from ressup import ressup
 from ib_insync import *
 
@@ -42,6 +41,18 @@ class get_data:
         return date_to_return.strftime('%Y%m%d')
 
     def get_strikes_and_expiration(self):
+        global call_option_price
+        global put_option_price
+        global call_option_volume
+        global put_option_volume
+        global events
+        global call_portfolio
+        global put_portfolio
+        global call_portfolio_price
+        global put_portfolio_price
+        global ib
+        global res
+        global account
         ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                     currency='USD')
         ib.sleep(0)
@@ -60,6 +71,18 @@ class get_data:
         return strikes, expiration
 
     def get_contract(self, right, net_liquidation):
+        global call_option_price
+        global put_option_price
+        global call_option_volume
+        global put_option_volume
+        global events
+        global call_portfolio
+        global put_portfolio
+        global call_portfolio_price
+        global put_portfolio_price
+        global ib
+        global res
+        global account
         strikes, expiration = self.get_strikes_and_expiration()
         for strike in strikes:
             contract = FuturesOption(symbol='ES', lastTradeDateOrContractMonth=expiration,
@@ -223,6 +246,18 @@ def flatten_position(portfolio, contract, price):
 
 
 def option_position():
+    global call_option_price
+    global put_option_price
+    global call_option_volume
+    global put_option_volume
+    global events
+    global call_portfolio
+    global put_portfolio
+    global call_portfolio_price
+    global put_portfolio_price
+    global ib
+    global res
+    global account
     stock_owned = np.zeros(2)
     position = ib.portfolio()
     call_position = None
@@ -521,8 +556,9 @@ def main():
     global put_portfolio_price
     global ib
     global res
-    events = all_events()
     global account
+    # events = all_events()
+    
     ib = IB()
     ib.disconnect()
     while not ib.isConnected():
@@ -535,7 +571,6 @@ def main():
     call_option_volume = np.ones(20)
     put_option_volume = np.ones(20)
     events.stock_owned = np.zeros(2)
-    endDateTime = ''
     No_days = '2 D'
     interval = '1 min'
     res = get_data()
@@ -565,7 +600,6 @@ def main():
     ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr=No_days,
                       barSizeSetting=interval, whatToShow='TRADES', useRTH=False, keepUpToDate=True,
                       timeout=10)
-    print(ES)
     call_option_volume = roll_contract(call_option_volume, call_option_price.bidSize)
     put_option_volume = roll_contract(put_option_volume, put_option_price.bidSize)
     trade(ES)
@@ -579,4 +613,18 @@ def main():
 
 if __name__ == "__main__":
     while True:
+        global call_option_price
+        global put_option_price
+        global call_option_volume
+        global put_option_volume
+        global events
+        global call_portfolio
+        global put_portfolio
+        global call_portfolio_price
+        global put_portfolio_price
+        global ib
+        global res
+        global account
+        res = get_data()
+        events = all_events()
         main()

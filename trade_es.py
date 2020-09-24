@@ -19,7 +19,7 @@ from ib_insync import *
 # import nest_asyncio
 
 # nest_asyncio.apply()
-util.startLoop()
+
 sys.setrecursionlimit(10 ** 9)
 
 
