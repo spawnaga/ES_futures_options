@@ -280,13 +280,19 @@ class Trade():
                 else:
                     buy_index = []
 
-    def error(self, reqId, errorCode, errorString, contract):
+    def error(self, reqId=None, errorCode=None, errorString=None, contract=None):
         print(errorCode, errorString)
         if errorCode == 10197 or errorCode == 10182:
             for task in asyncio.Task.all_tasks():
                 task.cancel()
             ib.disconnect()
             ib.sleep(3)
+            main()
+        elif errorCode == 200 or errorCode == 321 or errorCode == 10182:
+            for task in asyncio.Task.all_tasks():
+                task.cancel()
+            ib.disconnect()
+            main()
 
 
     def connect(self):
