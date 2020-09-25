@@ -113,8 +113,14 @@ class Trade():
         self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)
         self.call_option_volume = self.roll_contract(self.call_option_volume, self.call_option_price.bidSize)
         self.put_option_volume = self.roll_contract(self.put_option_volume, self.put_option_price.bidSize)
+        self.submitted = 0
+        for each in ib.positions():
+            if each.position <0:
+                order = MarketOrder(action = "BUY", totalQuantity=abs(each.position))
+                ib.qualifyContracts(each.contract)
+                trade = ib.placeOrder(contract=each.contract, order= order)
+                print(f'Buying to close short position')
 
-        # self.account_update()
 
 
 
@@ -136,11 +142,14 @@ class Trade():
 
             print(f'price = {price.bid}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
-            order = LimitOrder(action, totalQuantity, price.bid - 0.25)
+            order = LimitOrder(action, totalQuantity, price.bid - 0.25) if each.position > 0 else MarketOrder(action, totalQuantity)
             trade = ib.placeOrder(each.contract, order)
-            ib.sleep(5)
+            ib.sleep(10)
             if not trade.orderStatus.remaining == 0:
                 ib.cancelOrder(order)
+                self.submitted = 0
+            else:
+                self.submitted = 0
             print(trade.orderStatus.status)
             return
 
@@ -168,14 +177,12 @@ class Trade():
         buy_index = []
         sell_index = []
         tickers_signal = "Hold"
-        ib.sleep(0)
-        self.option_position()
         cash_in_hand = float(ib.accountSummary()[22].value)
         portolio_value = float(ib.accountSummary()[29].value)
 
-        call_contract_price = (self.call_option_price.ask + self.call_option_price.bid) / 2
-        put_contract_price = (self.put_option_price.ask + self.put_option_price.bid) / 2
-        options_array = np.array([call_contract_price, put_contract_price])
+        self.call_contract_price = 0.25 * round(((self.call_option_price.ask + self.call_option_price.bid) / 2 )/ 0.25)
+        self.put_contract_price = 0.25 * round (((self.put_option_price.ask + self.put_option_price.bid) / 2)/0.25)
+        options_array = np.array([self.call_contract_price, self.put_contract_price])
         self.call_option_volume = self.roll_contract(self.call_option_volume, self.call_option_price.bidSize)
         self.put_option_volume = self.roll_contract(self.put_option_volume, self.put_option_price.bidSize)
         # options_bid_volume = np.array([self.call_option_volume,self.put_option_volume])
@@ -243,9 +250,10 @@ class Trade():
 
             for i in sell_index:
                 print(self.stock_owned[i])
+                print(len(ib.portfolio()))
 
-                if ((self.stock_owned[i] != 0 & i == 0) or (self.stock_owned[i] != 0 & i == 1)) and len(ib.reqAllOpenOrders()) == 0:
-
+                if len(ib.portfolio()) != 0 and len(ib.reqAllOpenOrders()) == 0 and self.submitted == 0:
+                    self.submitted = 1
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = self.call_option_price if i == 0 else self.put_option_price
@@ -271,8 +279,8 @@ class Trade():
                                        options_array[i])  # round(25 * round(options_array[i]/25, 2), 2))
                     trade = ib.placeOrder(contract, order)
                     print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
-                    ib.sleep(5)
-                    if not trade.orderStatus.remaining == 0:
+                    ib.sleep(10)
+                    if not trade.orderStatus.status == "Filled":
                         ib.cancelOrder(order)
                     print(trade.orderStatus.status)
 
@@ -287,11 +295,13 @@ class Trade():
                 task.cancel()
             ib.disconnect()
             ib.sleep(3)
+            self.connect()
             main()
         elif errorCode == 200 or errorCode == 321 or errorCode == 10182:
-            for task in asyncio.Task.all_tasks():
+            for task in asyncio.all_tasks():
                 task.cancel()
             ib.disconnect()
+            self.connect()
             main()
 
 
