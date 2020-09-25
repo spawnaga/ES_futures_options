@@ -138,8 +138,10 @@ class Trade():
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
             order = LimitOrder(action, totalQuantity, price.bid - 0.25)
             trade = ib.placeOrder(each.contract, order)
+            ib.sleep(5)
+            if not trade.orderStatus.remaining == 0:
+                ib.cancelOrder(order)
             print(trade.orderStatus.status)
-
             return
 
     def option_position(self, event=None):
@@ -242,14 +244,13 @@ class Trade():
             for i in sell_index:
                 print(self.stock_owned[i])
 
-                if ((self.stock_owned[i] != 0 & i == 0) or (self.stock_owned[i] != 0 & i == 1) ) and len(ib.reqAllOpenOrders()) == 0:
+                if ((self.stock_owned[i] != 0 & i == 0) or (self.stock_owned[i] != 0 & i == 1)) and len(ib.reqAllOpenOrders()) == 0:
 
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = self.call_option_price if i == 0 else self.put_option_price
-
                     self.flatten_position(contract, price)
-                    ib.sleep(0)
+
                     cash_in_hand = float(ib.accountSummary()[5].value)
                     sell_index = []
 
@@ -270,6 +271,9 @@ class Trade():
                                        options_array[i])  # round(25 * round(options_array[i]/25, 2), 2))
                     trade = ib.placeOrder(contract, order)
                     print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
+                    ib.sleep(5)
+                    if not trade.orderStatus.remaining == 0:
+                        ib.cancelOrder(order)
                     print(trade.orderStatus.status)
 
                     buy_index = []
@@ -311,15 +315,17 @@ def main():
 
 
 if __name__ == '__main__':
-
-    try:
-        while True:
-            ib = IB()
-            res = get_data()
-            trading = Trade()
+    ib = IB()
+    res = get_data()
+    trading = Trade()
+    while True:
+        try:
             main()
-    except:
-        ib = IB()
-        res = get_data()
-        trading = Trade()
-        main()
+
+        except:
+            print('first try to connect failed waiting a minute and retry')
+            try:
+                trading.error()
+                main()
+            except:
+                main()
