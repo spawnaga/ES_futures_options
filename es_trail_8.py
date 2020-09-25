@@ -282,7 +282,7 @@ class Trade():
 
     def error(self, reqId, errorCode, errorString, contract):
         print(errorCode, errorString)
-        if errorCode == 10197:
+        if errorCode == 10197 or errorCode == 10182:
             for task in asyncio.Task.all_tasks():
                 task.cancel()
             ib.disconnect()
