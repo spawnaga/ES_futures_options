@@ -1,6 +1,6 @@
 import numpy as np
 import pandas as pd
-
+import sys
 import asyncio
 from datetime import datetime, timedelta
 import talib as ta
@@ -9,7 +9,7 @@ from ib_insync import *
 from ressup import ressup
 import nest_asyncio
 nest_asyncio.apply()
-
+sys.setrecursionlimit(10 ** 9)
 
 class get_data:
 
@@ -303,7 +303,7 @@ class Trade():
 
 
 def main():
-    # ib.positionEvent += trading.option_position
+    ib.positionEvent += trading.option_position
     # ib.accountValueEvent += trading.account_update
     ib.errorEvent += trading.error
     trading.ES.updateEvent += trading.trade
@@ -311,7 +311,14 @@ def main():
 
 
 if __name__ == '__main__':
-    while True:
+
+    try:
+        while True:
+            ib = IB()
+            res = get_data()
+            trading = Trade()
+            main()
+    except:
         ib = IB()
         res = get_data()
         trading = Trade()
