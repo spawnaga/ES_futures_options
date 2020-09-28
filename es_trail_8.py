@@ -287,7 +287,7 @@ class Trade():
         ib.qualifyContracts(self.put_contract)
 
     def trade(self, ES, hasNewBar=None):
-        if datetime.now().minute % 15 == 0 and self.ATR_checking == 0:
+        if datetime.now().minute % 5 == 0 and self.ATR_checking == 0:
             self.ATR_checking = 1
             self.ATR = self.profitable_ATR()
             ib.sleep(60)
@@ -432,7 +432,7 @@ class Trade():
             for i in range(len(df)):
                 if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                         df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
-                        buy_index == [] and stock_owned[0] == 1 and stock_owned[0] == 0:
+                        buy_index == [] and stock_owned[0] == 0 and stock_owned[1] == 0:
 
                     tickers_signal = "Buy call"
                     buy_index.append(0)
