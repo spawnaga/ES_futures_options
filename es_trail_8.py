@@ -407,6 +407,7 @@ class Trade():
                     quantity = 1  # int((cash_in_hand/(options_price[i] * 50)))
 
                     self.open_position(contract=contract, quantity=quantity, price=price)
+                    self.option_position()
             buy_index = []
 
     def profitable_ATR(self):
