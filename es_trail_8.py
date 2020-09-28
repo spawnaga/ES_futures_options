@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+pd.options.mode.chained_assignment = None
 import sys
 import asyncio
 from datetime import datetime, timedelta
@@ -115,7 +116,9 @@ class get_data2:
 
 
 class get_data:
-
+    def __init__(self):
+        self.ATR = 1
+        self.vol_roll_period = 20
     def next_exp_weekday(self):
         weekdays = {2: [5, 6, 0], 4: [0, 1, 2], 0: [3, 4]}
         today = datetime.today().weekday()
@@ -190,7 +193,7 @@ class get_data:
         ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'])
         ES_df['roll_max_cp'] = ES_df['high'].rolling(20).max()
         ES_df['roll_min_cp'] = ES_df['low'].rolling(20).min()
-        ES_df['roll_max_vol'] = ES_df['volume'].rolling(20).max()
+        ES_df['roll_max_vol'] = ES_df['volume'].rolling(int(self.vol_roll_period)).max()
         ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
         ES_df['EMA_21-EMA_9'] = ES_df['EMA_21'] - ES_df['EMA_9']
         ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
@@ -289,7 +292,7 @@ class Trade():
     def trade(self, ES, hasNewBar=None):
         if datetime.now().minute % 5 == 0 and self.ATR_checking == 0:
             self.ATR_checking = 1
-            self.ATR = self.profitable_ATR()
+            self.ATR, res.vol_roll_period = self.profitable_ATR()
             ib.sleep(60)
             self.ATR_checking = 0
         buy_index = []
@@ -412,7 +415,7 @@ class Trade():
 
     def profitable_ATR(self):
 
-        print('checking ATR')
+        print('checking ATR and max_vol roll period')
         ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                     currency='USD')
         ib.qualifyContracts(ES)
@@ -492,7 +495,79 @@ class Trade():
 
         ATR = max(var_ret, key=var_ret.get)
         print('Max ATR is at', ATR)
-        return ATR
+        vol_var = 5
+        var_ret = {}
+        while vol_var <= 50:
+            df['roll_max_vol'] = df['volume'].rolling(vol_var).max()
+            buy_index = []
+            sell_index = []
+            stock_owned = np.zeros(2)
+
+            ret = []
+            for i in range(len(df)):
+                if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
+                        df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
+                        buy_index == [] and stock_owned[0] == 0 and stock_owned[1] == 0:
+
+                    tickers_signal = "Buy call"
+                    buy_index.append(0)
+                    stock_owned = [1, 0]
+
+                elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
+                        df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
+                        buy_index == [] and stock_owned[0] == 0 and stock_owned[1] == 0:
+
+                    tickers_signal = "Buy put"
+                    buy_index.append(1)
+                    stock_owned = [0, 1]
+
+                elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and df["volume"].iloc[i] > \
+                        df["roll_max_vol"].iloc[i - 1] and stock_owned[0] == 1 and stock_owned[1] == 0:
+                    tickers_signal = "sell call and buy puts"
+                    sell_index.append(0)
+                    buy_index.append(1)
+                    stock_owned = [0, 1]
+
+
+                elif df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and df["volume"].iloc[i] > \
+                        df["roll_max_vol"].iloc[i - 1] and stock_owned[1] == 1 and stock_owned[0] == 0:
+                    tickers_signal = "sell put and buy calls"
+                    sell_index.append(1)
+                    buy_index.append(0)
+                    stock_owned = [1, 0]
+
+                elif (df["close"].iloc[i] < df["close"].iloc[i - 1] - (float(ATR) * df["ATR"].iloc[i - 1]) or (
+                        (df["close"].iloc[i] < df["low"].iloc[i - 1]) and df["volume"].iloc[i] >
+                        df["roll_max_vol"].iloc[i - 1])) and stock_owned[0] == 1 and stock_owned[1] == 0:
+                    tickers_signal = "sell call"
+                    sell_index.append(0)
+                    stock_owned = [0, 0]
+
+
+                elif (df["close"].iloc[i] > df["close"].iloc[i - 1] + (float(ATR) * df["ATR"].iloc[i - 1]) or (
+                        (df["close"].iloc[i] > df["high"].iloc[i - 1]) and df["volume"].iloc[i] >
+                        df["roll_max_vol"].iloc[i - 1])) and stock_owned[0] == 0 and stock_owned[1] == 1:
+                    tickers_signal = "sell put"
+                    sell_index.append(1)
+                    stock_owned = [0, 0]
+                else:
+                    tickers_signal = "Hold"
+                    sell_index = []
+                    buy_index = []
+                    if stock_owned[0] != 0:
+                        ret.append(df['ES_C_close'][i] - df['ES_C_close'][i - 1])
+                    elif stock_owned[1] != 0:
+                        ret.append(df['ES_P_close'][i] - df['ES_P_close'][i - 1])
+                    else:
+                        ret.append(0)
+
+            print(f'vol_var = {vol_var}, returns = {sum(ret) * 50}')
+            var_ret[str(vol_var)] = sum(ret) * 50
+            vol_var += 5
+
+        vol = max(var_ret, key=var_ret.get)
+        print('Max roll var is at', vol)
+        return ATR, vol
 
     def error(self, reqId=None, errorCode=None, errorString=None, contract=None):
         print(errorCode, errorString)
