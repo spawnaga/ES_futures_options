@@ -95,7 +95,7 @@ class get_data:
         ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
         ES_df['EMA_21-EMA_9'] = ES_df['EMA_21'] - ES_df['EMA_9']
         ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
-        ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
+        ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] =ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace=True)
         return ES_df
 
@@ -125,8 +125,8 @@ class Trade():
         ib.positionEvent += self.option_position
         # ib.accountValueEvent += trading.account_update
         ib.errorEvent += self.error
-        self.max_call_price = 1
-        self.max_put_price = 1
+        self.max_call_price = self.call_option_price.bid
+        self.max_put_price = self.put_option_price.bid
 
 
     def flatten_position(self, contract, price):
@@ -197,17 +197,18 @@ class Trade():
         portfolio = ib.portfolio()
         open_orders = ib.reqAllOpenOrders()
 
-
         self.call_contract_price = 0.25 * round(((self.call_option_price.ask + self.call_option_price.bid) / 2) / 0.25)
         self.put_contract_price = 0.25 * round(((self.put_option_price.ask + self.put_option_price.bid) / 2) / 0.25)
-        if not self.call_option_price.bidGreeks.impliedVol == None:
-            call_stop_loss = 1.25 if self.call_option_price.bidGreeks.impliedVol > 0.29 else \
-                1 if 0.27 < self.call_option_price.bidGreeks.impliedVol < 0.29 else 0.75
-            put_stop_loss = 1.25 if self.put_option_price.bidGreeks.impliedVol > 0.29 else \
-                1 if 0.27 < self.put_option_price.bidGreeks.impliedVol < 0.29 else 0.75
+        if not isinstance(self.call_option_price.bidGreeks.impliedVol,type(None)):
+            call_stop_loss = 2.5 if self.call_option_price.bidGreeks.impliedVol > 0.33 else 2 if \
+                self.call_option_price.bidGreeks.impliedVol > 0.29 else \
+                1.5 if 0.27 < self.call_option_price.bidGreeks.impliedVol < 0.29 else 1
+            put_stop_loss = 2.5 if self.put_option_price.bidGreeks.impliedVol > 0.33 else 2 if \
+                self.put_option_price.bidGreeks.impliedVol > 0.29 else \
+                1.5 if 0.27 < self.put_option_price.bidGreeks.impliedVol < 0.29 else 1
         else:
-            call_stop_loss = 1.5
-            put_stop_loss = 1.5
+            call_stop_loss = 1
+            put_stop_loss = 1
         options_price = np.array([self.call_contract_price, self.put_contract_price])
         self.call_option_volume = self.roll_contract(self.call_option_volume, self.call_option_price.bidSize)
         self.put_option_volume = self.roll_contract(self.put_option_volume, self.put_option_price.bidSize)
@@ -216,17 +217,21 @@ class Trade():
 
         df = data_raw[
             ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol']].tail()
-        self.max_call_price = self.call_option_price.bid if self.call_option_price.bid > self.max_call_price else \
-            self.max_call_price
-        self.max_put_price = self.put_option_price.bid if self.put_option_price.bid > self.max_put_price else \
-            self.max_put_price
+        if self.stock_owned.any() != 0:
+            self.max_call_price = self.call_option_price.bid if self.call_option_price.bid > self.max_call_price else \
+                self.max_call_price
+            self.max_put_price = self.put_option_price.bid if self.put_option_price.bid > self.max_put_price else \
+                self.max_put_price
+        else:
+            self.max_call_price = self.call_option_price.bid
+            self.max_put_price = self.put_option_price.bid
         print(
             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, '
             f'realized PNL = {account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
             f'and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_price} and '
             f' IV for bid calls is {self.call_option_price.bidGreeks.impliedVol} thus call IV ={call_stop_loss}'
             f' and IV for bid put is {self.put_option_price.bidGreeks.impliedVol} thus put IV = {put_stop_loss} '
-            f'and max call price = {self.max_call_price} compared to {self.max_call_price} and max put price = '
+            f'and max call price = {self.max_call_price} compared to {self.call_option_price.bid} and max put price = '
             f'{self.max_put_price} compared to {self.put_option_price.bid}')
         i = -1
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
@@ -321,7 +326,7 @@ class Trade():
             for task in asyncio.Task.all_tasks():
                 task.cancel()
             ib.disconnect()
-            ib.sleep(3)
+            ib.sleep(60)
             self.connect()
             main()
 
