@@ -125,6 +125,8 @@ class Trade():
         ib.positionEvent += self.option_position
         # ib.accountValueEvent += trading.account_update
         ib.errorEvent += self.error
+        self.max_call_price = 1
+        self.max_put_price = 1
 
 
     def flatten_position(self, contract, price):
@@ -185,6 +187,7 @@ class Trade():
         ib.qualifyContracts(self.put_contract)
 
     def trade(self, ES, hasNewBar=None):
+
         buy_index = []
         sell_index = []
         tickers_signal = "Hold"
@@ -197,6 +200,14 @@ class Trade():
 
         self.call_contract_price = 0.25 * round(((self.call_option_price.ask + self.call_option_price.bid) / 2) / 0.25)
         self.put_contract_price = 0.25 * round(((self.put_option_price.ask + self.put_option_price.bid) / 2) / 0.25)
+        if not self.call_option_price.bidGreeks.impliedVol == None:
+            call_stop_loss = 1.25 if self.call_option_price.bidGreeks.impliedVol > 0.29 else \
+                1 if 0.27 < self.call_option_price.bidGreeks.impliedVol < 0.29 else 0.75
+            put_stop_loss = 1.25 if self.put_option_price.bidGreeks.impliedVol > 0.29 else \
+                1 if 0.27 < self.put_option_price.bidGreeks.impliedVol < 0.29 else 0.75
+        else:
+            call_stop_loss = 1.5
+            put_stop_loss = 1.5
         options_price = np.array([self.call_contract_price, self.put_contract_price])
         self.call_option_volume = self.roll_contract(self.call_option_volume, self.call_option_price.bidSize)
         self.put_option_volume = self.roll_contract(self.put_option_volume, self.put_option_price.bidSize)
@@ -205,11 +216,18 @@ class Trade():
 
         df = data_raw[
             ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol']].tail()
-
+        self.max_call_price = self.call_option_price.bid if self.call_option_price.bid > self.max_call_price else \
+            self.max_call_price
+        self.max_put_price = self.put_option_price.bid if self.put_option_price.bid > self.max_put_price else \
+            self.max_put_price
         print(
             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, '
             f'realized PNL = {account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
-            f'and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_price} and ATR multiple used is ')
+            f'and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_price} and '
+            f' IV for bid calls is {self.call_option_price.bidGreeks.impliedVol} thus call IV ={call_stop_loss}'
+            f' and IV for bid put is {self.put_option_price.bidGreeks.impliedVol} thus put IV = {put_stop_loss} '
+            f'and max call price = {self.max_call_price} compared to {self.max_call_price} and max put price = '
+            f'{self.max_put_price} compared to {self.put_option_price.bid}')
         i = -1
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
@@ -239,18 +257,18 @@ class Trade():
             buy_index.append(0)
 
         elif (df["close"].iloc[i] < df["close"].iloc[i - 1] - (float(self.ATR) * df["ATR"].iloc[i - 1]) or (
-                (df["close"].iloc[i] < df["low"].iloc[i - 1]) and df["volume"].iloc[i] > df["roll_max_vol"].iloc[
-            i - 1]) ) and self.stock_owned[
-            0] == 1 and self.stock_owned[1] == 0: #or 2 < self.call_option_volume[-1] <= self.call_option_volume.max() / 4
+                (df["close"].iloc[i] < df["low"].iloc[i - 1]) or (((self.max_call_price -
+                self.call_contract_price)) >= call_stop_loss) and df["volume"].iloc[i] > df["roll_max_vol"].iloc[
+            i - 1])) and self.stock_owned[0] == 1 and self.stock_owned[1] == 0: #or 2 < self.call_option_volume[-1] <= self.call_option_volume.max() / 4
             tickers_signal = "sell call"
             sell_index.append(0)
 
 
 
         elif (df["close"].iloc[i] > df["close"].iloc[i - 1] + (float(self.ATR) * df["ATR"].iloc[i - 1]) or (
-                (df["close"].iloc[i] > df["high"].iloc[i - 1]) and df["volume"].iloc[i] > df["roll_max_vol"].iloc[
-            i - 1])) and self.stock_owned[
-            0] == 0 and self.stock_owned[1] == 1:
+                (df["close"].iloc[i] > df["high"].iloc[i - 1]) or (((self.max_put_price -
+                self.put_contract_price)) >= put_stop_loss) and df["volume"].iloc[i] > df["roll_max_vol"].iloc[
+            i - 1])) and self.stock_owned[0] == 0 and self.stock_owned[1] == 1:
             tickers_signal = "sell put"
             sell_index.append(1)
 
@@ -278,6 +296,7 @@ class Trade():
                     self.flatten_position(contract, price)
                     self.option_position()
             sell_index = []
+
         if buy_index:
 
             for i in buy_index:
