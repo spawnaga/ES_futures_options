@@ -192,20 +192,27 @@ class Trade():
         sell_index = []
         tickers_signal = "Hold"
         account = ib.accountSummary()
-        cash_in_hand = float(account[22].value)
-        portolio_value = float(account[29].value)
+        try:
+            cash_in_hand = float(account[22].value)
+            portolio_value = float(account[29].value)
+        except IndexError:
+
+            account = ib.accountSummary()
+            ib.sleep(0)
+            cash_in_hand = float(account[22].value)
+            portolio_value = float(account[29].value)
         portfolio = ib.portfolio()
         open_orders = ib.reqAllOpenOrders()
 
         self.call_contract_price = 0.25 * round(((self.call_option_price.ask + self.call_option_price.bid) / 2) / 0.25)
         self.put_contract_price = 0.25 * round(((self.put_option_price.ask + self.put_option_price.bid) / 2) / 0.25)
         if not isinstance(self.call_option_price.bidGreeks.impliedVol,type(None)):
-            call_stop_loss = 2.5 if self.call_option_price.bidGreeks.impliedVol > 0.33 else 2 if \
-                self.call_option_price.bidGreeks.impliedVol > 0.29 else \
-                1.5 if 0.27 < self.call_option_price.bidGreeks.impliedVol < 0.29 else 1
-            put_stop_loss = 2.5 if self.put_option_price.bidGreeks.impliedVol > 0.33 else 2 if \
-                self.put_option_price.bidGreeks.impliedVol > 0.29 else \
-                1.5 if 0.27 < self.put_option_price.bidGreeks.impliedVol < 0.29 else 1
+            call_stop_loss = 1 if self.call_option_price.bidGreeks.impliedVol > 0.29 else 1.5 if \
+                self.call_option_price.bidGreeks.impliedVol > 0.27 else \
+                2 if 0.25 < self.call_option_price.bidGreeks.impliedVol < 0.27 else 2.5
+            put_stop_loss = 1 if self.put_option_price.bidGreeks.impliedVol > 0.29 else 1.5 if \
+                self.put_option_price.bidGreeks.impliedVol > 0.27 else \
+                2 if 0.25 < self.put_option_price.bidGreeks.impliedVol < 0.27 else 2.5
         else:
             call_stop_loss = 1
             put_stop_loss = 1
@@ -217,7 +224,7 @@ class Trade():
 
         df = data_raw[
             ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol']].tail()
-        if self.stock_owned.any() != 0:
+        if self.stock_owned.any() != 0 and not pd.isna(self.call_option_price.bid) and not pd.isna(self.put_option_price.bid):
             self.max_call_price = self.call_option_price.bid if self.call_option_price.bid > self.max_call_price else \
                 self.max_call_price
             self.max_put_price = self.put_option_price.bid if self.put_option_price.bid > self.max_put_price else \
