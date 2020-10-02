@@ -374,7 +374,7 @@ class Trade():
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = self.call_option_price if i == 0 else self.put_option_price
-                    self.take_profit(contract, price.ask - 0.25)
+                    self.take_profit(contract, price.ask - 0.50)
                     self.option_position()
                     self.submitted = 0
             take_profit = []
