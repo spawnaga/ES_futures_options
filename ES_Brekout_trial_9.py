@@ -111,6 +111,8 @@ class Trade():
         self.call_option_volume = np.ones(20)
         self.put_option_volume = np.ones(20)
         self.stock_owned = np.zeros(2)
+        self.call_cost = 0
+        self.put_cost = 0
 
         ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                     currency='USD')
@@ -130,8 +132,7 @@ class Trade():
         ib.errorEvent += self.error
         self.max_call_price = self.call_option_price.bid
         self.max_put_price = self.put_option_price.bid
-        self.call_cost = 0
-        self.put_cost = 0
+
     def flatten_position(self, contract, price):
 
         print('flatttttttttttttttttttttttttttttttttttttttttttttttttttttt')
@@ -208,10 +209,12 @@ class Trade():
                 call_position = each.contract
                 ib.qualifyContracts(call_position)
                 self.stock_owned[0] = each.position
+                self.call_cost = 0.25 * round(each.averageCost/50/0.25)
             elif each.contract.right == 'P':
                 put_position = each.contract
                 ib.qualifyContracts(put_position)
                 self.stock_owned[1] = each.position
+                self.put_cost =  0.25 * round(each.averageCost/50/0.25,2)
         self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
         ib.qualifyContracts(self.call_contract)
         self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
@@ -269,6 +272,10 @@ class Trade():
             f'stop loss ={stop_loss} and max call price = {self.max_call_price} compared to {self.call_option_price.bid} and max put price = '
             f'{self.max_put_price} compared to {self.put_option_price.bid} and self.ATR = {self.ATR} and '
             f'Resistance = {df["Resistance"][-1]} and Support = {df["Support"][-1]}')
+        if self.call_cost !=0:
+            print(f'Call cost was = {self.call_cost}')
+        elif self.put_cost !=0:
+            print(f'Put cost was = {self.put_cost}')
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0:
@@ -317,14 +324,14 @@ class Trade():
 
 
         elif (self.stock_owned[0] > 0) and (not df["volume"].iloc[i] > df["roll_max_vol"].iloc[
-            i - 1] and ((2 < self.call_option_volume < self.call_option_volume / 4) or
+            i - 1] and ((2 < self.call_option_volume[-1] < self.call_option_volume[-1] / 4) or
                         (self.max_call_price / self.call_cost) > 1.20))\
                 and len(open_orders) == 0 and self.submitted == 0:
             tickers_signal = "take calls profit"
             take_profit.append(0)
 
         elif (self.stock_owned[1] > 0) and (not df["volume"].iloc[i] > df["roll_max_vol"].iloc[
-            i - 1] and ((2 < self.put_option_volume < self.put_option_volume / 4) or
+            i - 1] and ((2 < self.put_option_volume[-1] < self.put_option_volume[-1] / 4) or
                         (self.max_put_price / self.put_cost) > 1.20)) \
                 and len(open_orders) == 0 and self.submitted == 0:
             tickers_signal = "take puts profit"
