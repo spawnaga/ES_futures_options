@@ -130,13 +130,14 @@ class Trade():
         ib.errorEvent += self.error
         self.max_call_price = self.call_option_price.bid
         self.max_put_price = self.put_option_price.bid
-
+        self.call_cost = 0
+        self.put_cost = 0
     def flatten_position(self, contract, price):
 
         print('flatttttttttttttttttttttttttttttttttttttttttttttttttttttt')
         portfolio = ib.portfolio()
         for each in portfolio:
-            if each.contract.right != contract.right :
+            if each.contract.right != contract.right:
                 continue
             ib.qualifyContracts(each.contract)
             if each.position > 0:  # Number of active Long portfolio
@@ -147,14 +148,42 @@ class Trade():
                 assert False
             totalQuantity = abs(each.position)
 
-            print(f'price = {price-0.25}')
+            print(f'price = {price - 0.25}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
             order = LimitOrder(action, totalQuantity, price) if each.position > 0 else MarketOrder(action,
-                                                                                                              totalQuantity)
+                                                                                                   totalQuantity)
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(10)
             if not trade.orderStatus.remaining == 0:
-                 ib.cancelOrder(order)
+                ib.cancelOrder(order)
+            self.submitted = 0
+            print(trade.orderStatus.status)
+
+    def take_profit(self, contract, price):
+
+        print('take________profit')
+        portfolio = ib.portfolio()
+        for each in portfolio:
+            if each.contract.right != contract.right and price <= 0.25 + each.averageCost:
+                print('cancel sell no profit yet')
+                return
+            ib.qualifyContracts(each.contract)
+            if each.position > 0:  # Number of active Long portfolio
+                action = 'SELL'  # to offset the long portfolio
+            elif each.position < 0:  # Number of active Short portfolio
+                action = 'BUY'  # to offset the short portfolio
+            else:
+                assert False
+            totalQuantity = abs(each.position)
+
+            print(f'price = {price - 0.25}')
+            print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
+            order = LimitOrder(action, totalQuantity, price) if each.position > 0 else MarketOrder(action,
+                                                                                                   totalQuantity)
+            trade = ib.placeOrder(each.contract, order)
+            ib.sleep(10)
+            if not trade.orderStatus.remaining == 0:
+                ib.cancelOrder(order)
             self.submitted = 0
             print(trade.orderStatus.status)
 
@@ -217,11 +246,13 @@ class Trade():
         data_raw = res.ES(ES)
 
         df = data_raw[
-            ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol', 'Resistance', 'Support']].tail()
+            ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol', 'Resistance',
+             'Support']].tail()
         if self.stock_owned.any() != 0 and not np.isnan(self.max_call_price) and not np.isnan(
                 self.max_put_price):
             self.max_call_price = self.call_option_price.bid if self.call_option_price.bid > self.max_call_price else \
                 self.max_call_price
+
             self.max_put_price = self.put_option_price.bid if self.put_option_price.bid > self.max_put_price else \
                 self.max_put_price
         else:
@@ -272,22 +303,32 @@ class Trade():
             sell_index.append(0)
 
 
-
         elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (float(self.ATR) * df["ATR"].iloc[i - 1])) or
               self.max_put_price - self.put_contract_price) >= stop_loss and self.stock_owned[0] == 0 \
                 and self.stock_owned[1] == 1:
             tickers_signal = "sell put"
             sell_index.append(1)
 
-        elif df['Resistance'].iloc[i] - 1 <= df['close'].iloc[i] or df['close'].iloc[i] <= df['Support'].iloc[i] and self.stock_owned[0] == 0 \
+        elif df['Resistance'].iloc[i] - 1 <= df['close'].iloc[i] or df['close'].iloc[i] <= df['Support'].iloc[i] and \
+                self.stock_owned[0] == 0 \
                 and (self.stock_owned[1] > 0 or self.stock_owned[0] > 0):
             sell_index.append(0 if self.stock_owned[0] > 0 else 1)
+            print('hitting Major resistance or support')
 
 
-        elif (self.stock_owned[0] > 0  or self.stock_owned[1] >0 ) and not df["volume"].iloc[i] > df["roll_max_vol"].iloc[
-            i - 1] and (self.call_option_price.bid >= self.max_call_price or self.put_option_price.bid >= self.max_put_price) and len(open_orders) == 0 and self.submitted == 0:
-            tickers_signal = "take profit"
-            take_profit.append()
+        elif (self.stock_owned[0] > 0) and (not df["volume"].iloc[i] > df["roll_max_vol"].iloc[
+            i - 1] and ((2 < self.call_option_volume < self.call_option_volume / 4) or
+                        (self.max_call_price / self.call_cost) > 1.20))\
+                and len(open_orders) == 0 and self.submitted == 0:
+            tickers_signal = "take calls profit"
+            take_profit.append(0)
+
+        elif (self.stock_owned[1] > 0) and (not df["volume"].iloc[i] > df["roll_max_vol"].iloc[
+            i - 1] and ((2 < self.put_option_volume < self.put_option_volume / 4) or
+                        (self.max_put_price / self.put_cost) > 1.20)) \
+                and len(open_orders) == 0 and self.submitted == 0:
+            tickers_signal = "take puts profit"
+            take_profit.append(1)
 
         else:
             tickers_signal = "Hold"
@@ -303,15 +344,14 @@ class Trade():
 
             for i in sell_index:
                 # self.stock_owned[i] = 0
-                print(self.stock_owned[i])
-                print(len(portfolio))
 
                 if len(portfolio) != 0 and len(open_orders) == 0 and self.submitted == 0:
                     self.submitted = 1
+                    print('selling for stop loss')
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = self.call_option_price if i == 0 else self.put_option_price
-                    self.flatten_position(contract, price.bid - 0.25)
+                    self.flatten_position(contract, price.bid)
                     self.option_position()
                     self.submitted = 0
             sell_index = []
@@ -323,10 +363,11 @@ class Trade():
 
                 if len(portfolio) != 0 and len(open_orders) == 0 and self.submitted == 0:
                     self.submitted = 1
+                    print('selling for take profit')
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = self.call_option_price if i == 0 else self.put_option_price
-                    self.flatten_position(contract, price.ask - 0.25)
+                    self.take_profit(contract, price.ask - 0.25)
                     self.option_position()
                     self.submitted = 0
             take_profit = []
@@ -344,6 +385,10 @@ class Trade():
                     quantity = 1  # int((cash_in_hand/(options_price[i] * 50)))
 
                     self.open_position(contract=contract, quantity=quantity, price=price)
+                    if i ==0 :
+                        self.call_cost = price
+                    elif i == 1:
+                        self.put_cost = price
                     self.option_position()
             buy_index = []
 
