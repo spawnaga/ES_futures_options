@@ -154,7 +154,7 @@ class Trade():
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(10)
             if not trade.orderStatus.remaining == 0:
-                ib.cancelOrder(order)
+                 ib.cancelOrder(order)
             self.submitted = 0
             print(trade.orderStatus.status)
 
