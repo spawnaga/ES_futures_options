@@ -111,9 +111,6 @@ class Trade():
         self.call_option_volume = np.ones(20)
         self.put_option_volume = np.ones(20)
         self.stock_owned = np.zeros(2)
-        self.call_cost = 0
-        self.put_cost = 0
-
         ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                     currency='USD')
         ib.qualifyContracts(ES)
@@ -215,6 +212,9 @@ class Trade():
                 ib.qualifyContracts(put_position)
                 self.stock_owned[1] = each.position
                 self.put_cost =  0.25 * round(each.averageCost/50/0.25,2)
+        if len(position) == 0:
+            self.call_cost = 0
+            self.put_cost = 0
         self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
         ib.qualifyContracts(self.call_contract)
         self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
