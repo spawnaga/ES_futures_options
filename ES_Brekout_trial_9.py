@@ -262,12 +262,12 @@ class Trade():
             self.max_put_price = self.put_option_price.bid if self.put_option_price.bid > self.max_put_price else \
                 self.max_put_price
         else:
-            self.max_call_price = 0
-            self.max_put_price = 0
+            self.max_call_price = self.call_option_price.bid
+            self.max_put_price = self.put_option_price.bid
 
         i = -1
-        stop_loss = 1 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)
-        self.ATR = 0.25 * round((df["ATR"].iloc[i]) / 0.25)
+        stop_loss = 1 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)
+        self.ATR = 0.50 * round((df["ATR"].iloc[i]) / 0.25)
         print(
             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, '
             f'realized PNL = {account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
@@ -359,6 +359,9 @@ class Trade():
                     self.flatten_position(contract, price.bid)
 
                     self.submitted = 0
+                    if self.call_cost or self.put_cost:
+                        self.call_cost = 0
+                        self.put_cost = 0
             sell_index = []
         if take_profit:
             for i in take_profit:
@@ -376,6 +379,9 @@ class Trade():
                     self.take_profit(contract, price.ask - 0.50)
 
                     self.submitted = 0
+                if self.call_cost or self.put_cost:
+                    self.call_cost = 0
+                    self.put_cost = 0
             take_profit = []
         # buy_index = [0]
         if buy_index:
