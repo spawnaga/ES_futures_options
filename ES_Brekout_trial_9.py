@@ -94,7 +94,7 @@ class get_data:
         ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'])
         ES_df['roll_max_cp'] = ES_df['high'].rolling(20).max()
         ES_df['roll_min_cp'] = ES_df['low'].rolling(20).min()
-        ES_df['roll_max_vol'] = ES_df['volume'].rolling(20).max()
+        ES_df['roll_max_vol'] = ES_df['volume'].rolling(3).max()
         ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
         ES_df['EMA_21-EMA_9'] = ES_df['EMA_21'] - ES_df['EMA_9']
         ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
@@ -319,11 +319,6 @@ class Trade():
             tickers_signal = "sell put"
             sell_index.append(1)
 
-        # elif df['Resistance'].iloc[i] - 1 <= df['close'].iloc[i] or df['close'].iloc[i] <= df['Support'].iloc[i] and \
-        #         self.stock_owned[0] == 0 \
-        #         and (self.stock_owned[1] > 0 or self.stock_owned[0] > 0):
-        #     sell_index.append(0 if self.stock_owned[0] > 0 else 1)
-        #     print('hitting Major resistance or support')
 
 
         elif (self.stock_owned[0] > 0) and (not df["volume"].iloc[i] > df["roll_max_vol"].iloc[

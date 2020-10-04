@@ -101,114 +101,205 @@ class get_data:
     def options(self, df1,df2):
         return pd.merge(df1,df2, on='date', how='outer').dropna()
 
+
+
+class Trade:
+
+
+    def __init__(self):
+        self.connect()
+        self.call_option_volume = np.ones(20)
+        self.put_option_volume = np.ones(20)
+        self.stock_owned = np.zeros(2)
+
+        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
+                    currency='USD')
+        ib.qualifyContracts(ES)
+        self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
+                                       barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
+                                       timeout=10)
+        self.option_position()
+        self.call_option_price = ib.reqMktData(self.call_contract, '', False, False)
+        self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)
+        self.call_option_volume = self.roll_contract(self.call_option_volume, self.call_option_price.bidSize)
+        self.put_option_volume = self.roll_contract(self.put_option_volume, self.put_option_price.bidSize)
+        self.submitted = 0
+        for each in ib.positions():
+            if each.position < 0:
+                order = MarketOrder(action="BUY", totalQuantity=abs(each.position))
+                ib.qualifyContracts(each.contract)
+                trade = ib.placeOrder(contract=each.contract, order=order)
+                print(f'Buying to close short position')
+        self.ATR = 1
+        self.ATR_checking = 0
+
+        def profitable_ATR(self):
+            print('checking ATR and max_vol roll period')
+            ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
+                        currency='USD')
+            ib.qualifyContracts(ES)
+            var_ret = {}
+            var = 0.25
+            data_raw = res.options(res.options(res.ES(), res.option_history(res.get_contract('C', 2000))),
+                                    res.option_history(res.get_contract('P', 2000)))
+            df = data_raw[
+                ['high', 'low', 'close', 'volume', 'roll_max_vol', 'roll_max_cp', 'roll_min_cp', 'ATR', 'ES_C_close',
+                 'ES_P_close']]
+            buy_index = []
+            sell_index = []
+            stock_owned = np.zeros(2)
+            var_ret = {}
+            while var != 5:
+                ret = []
+                for i in range(len(df)):
+                    if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
+                            df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
+                            buy_index == [] and stock_owned[0] == 0 and stock_owned[1] == 0:
+
+                        tickers_signal = "Buy call"
+                        buy_index.append(0)
+                        stock_owned = [1, 0]
+
+                    elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
+                            df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
+                            buy_index == [] and stock_owned[0] == 0 and stock_owned[1] == 0:
+
+                        tickers_signal = "Buy put"
+                        buy_index.append(1)
+                        stock_owned = [0, 1]
+
+                    elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and df["volume"].iloc[i] > \
+                            df["roll_max_vol"].iloc[i - 1] and stock_owned[0] == 1 and stock_owned[1] == 0:
+                        tickers_signal = "sell call and buy puts"
+                        sell_index.append(0)
+                        buy_index.append(1)
+                        stock_owned = [0, 1]
+
+
+                    elif df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and df["volume"].iloc[i] > \
+                            df["roll_max_vol"].iloc[i - 1] and stock_owned[1] == 1 and stock_owned[0] == 0:
+                        tickers_signal = "sell put and buy calls"
+                        sell_index.append(1)
+                        buy_index.append(0)
+                        stock_owned = [1, 0]
+
+                    elif (df["close"].iloc[i] < df["close"].iloc[i - 1] - (var * df["ATR"].iloc[i - 1]) or (
+                            (df["close"].iloc[i] < df["low"].iloc[i - 1]) and df["volume"].iloc[i] >
+                            df["roll_max_vol"].iloc[i - 1])) and stock_owned[0] == 1 and stock_owned[1] == 0:
+                        tickers_signal = "sell call"
+                        sell_index.append(0)
+                        stock_owned = [0, 0]
+
+
+                    elif (df["close"].iloc[i] > df["close"].iloc[i - 1] + (var * df["ATR"].iloc[i - 1]) or (
+                            (df["close"].iloc[i] > df["high"].iloc[i - 1]) and df["volume"].iloc[i] >
+                            df["roll_max_vol"].iloc[i - 1])) and stock_owned[0] == 0 and stock_owned[1] == 1:
+                        tickers_signal = "sell put"
+                        sell_index.append(1)
+                        stock_owned = [0, 0]
+                    else:
+                        tickers_signal = "Hold"
+                        sell_index = []
+                        buy_index = []
+                        if stock_owned[0] != 0:
+                            ret.append(df['ES_C_close'][i] - df['ES_C_close'][i - 1])
+                        elif stock_owned[1] != 0:
+                            ret.append(df['ES_P_close'][i] - df['ES_P_close'][i - 1])
+                        else:
+                            ret.append(0)
+
+                print(f'var = {var}, returns = {sum(ret) * 50}')
+                var_ret[str(var)] = sum(ret) * 50
+                var += 0.25
+
+            ATR = max(var_ret, key=var_ret.get)
+            print('Max ATR is at', ATR)
+            vol_var = 5
+            var_ret = {}
+            while vol_var <= 50:
+                df['roll_max_vol'] = df['volume'].rolling(vol_var).max()
+                buy_index = []
+                sell_index = []
+                stock_owned = np.zeros(2)
+
+                ret = []
+                for i in range(len(df)):
+                    if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
+                            df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
+                            buy_index == [] and stock_owned[0] == 0 and stock_owned[1] == 0:
+
+                        tickers_signal = "Buy call"
+                        buy_index.append(0)
+                        stock_owned = [1, 0]
+
+                    elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
+                            df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
+                            buy_index == [] and stock_owned[0] == 0 and stock_owned[1] == 0:
+
+                        tickers_signal = "Buy put"
+                        buy_index.append(1)
+                        stock_owned = [0, 1]
+
+                    elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and df["volume"].iloc[i] > \
+                            df["roll_max_vol"].iloc[i - 1] and stock_owned[0] == 1 and stock_owned[1] == 0:
+                        tickers_signal = "sell call and buy puts"
+                        sell_index.append(0)
+                        buy_index.append(1)
+                        stock_owned = [0, 1]
+
+
+                    elif df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and df["volume"].iloc[i] > \
+                            df["roll_max_vol"].iloc[i - 1] and stock_owned[1] == 1 and stock_owned[0] == 0:
+                        tickers_signal = "sell put and buy calls"
+                        sell_index.append(1)
+                        buy_index.append(0)
+                        stock_owned = [1, 0]
+
+                    elif (df["close"].iloc[i] < df["close"].iloc[i - 1] - (float(ATR) * df["ATR"].iloc[i - 1]) or (
+                            (df["close"].iloc[i] < df["low"].iloc[i - 1]) and df["volume"].iloc[i] >
+                            df["roll_max_vol"].iloc[i - 1])) and stock_owned[0] == 1 and stock_owned[1] == 0:
+                        tickers_signal = "sell call"
+                        sell_index.append(0)
+                        stock_owned = [0, 0]
+
+
+                    elif (df["close"].iloc[i] > df["close"].iloc[i - 1] + (float(ATR) * df["ATR"].iloc[i - 1]) or (
+                            (df["close"].iloc[i] > df["high"].iloc[i - 1]) and df["volume"].iloc[i] >
+                            df["roll_max_vol"].iloc[i - 1])) and stock_owned[0] == 0 and stock_owned[1] == 1:
+                        tickers_signal = "sell put"
+                        sell_index.append(1)
+                        stock_owned = [0, 0]
+                    else:
+                        tickers_signal = "Hold"
+                        sell_index = []
+                        buy_index = []
+                        if stock_owned[0] != 0:
+                            ret.append(df['ES_C_close'][i] - df['ES_C_close'][i - 1])
+                        elif stock_owned[1] != 0:
+                            ret.append(df['ES_P_close'][i] - df['ES_P_close'][i - 1])
+                        else:
+                            ret.append(0)
+
+                print(f'vol_var = {vol_var}, returns = {sum(ret) * 50}')
+                var_ret[str(vol_var)] = sum(ret) * 50
+                vol_var += 5
+
+            vol = max(var_ret, key=var_ret.get)
+            print('Max roll var is at', vol)
+            return ATR, vol
+
+        def connect(self):
+            ib.disconnect()
+            ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
+            ib.client.MaxRequests = 55
+
+endDateTime = ''
+No_days = '1 D'
+interval = '1 min'
+trade = Trade()
+ib = IB()
+trade.connect()
 res = get_data()
 
 data_raw = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000)))\
-                               ,res.option_history(res.get_contract('P', 2000))) #collect live data of ES with TA and options prices
-
-#
-# class trade:
-#     def trade(self, ES):
-#         buy_index = []
-#         sell_index = []
-#         tickers_signal = "Hold"
-#         account = ib.accountSummary()
-#         cash_in_hand = float(account[22].value)
-#         portolio_value = float(account[29].value)
-#         portfolio = ib.portfolio()
-#         open_orders = ib.reqAllOpenOrders()
-#
-#         self.call_contract_price = 0.25 * round(((self.call_option_price.ask + self.call_option_price.bid) / 2) / 0.25)
-#         self.put_contract_price = 0.25 * round(((self.put_option_price.ask + self.put_option_price.bid) / 2) / 0.25)
-#         options_array = np.array([self.call_contract_price, self.put_contract_price])
-#         self.call_option_volume = self.roll_contract(self.call_option_volume, self.call_option_price.bidSize)
-#         self.put_option_volume = self.roll_contract(self.put_option_volume, self.put_option_price.bidSize)
-#         # options_bid_volume = np.array([self.call_option_volume,self.put_option_volume])
-#         data_raw = res.ES(ES)
-#
-#         df = data_raw[
-#             ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol']].tail()
-#
-#         print(
-#             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, realized PNL = {account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_array}')
-#         if df["high"].iloc[-1] >= df["roll_max_cp"].iloc[-2] and \
-#                 df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2] and \
-#                 len(portfolio) == 0 and buy_index == []:
-#
-#             tickers_signal = "Buy call"
-#             buy_index.append(0)
-#
-#         elif df["low"].iloc[-1] <= df["roll_min_cp"].iloc[-2] and \
-#                 df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2] and \
-#                 len(portfolio) == 0 and buy_index == []:
-#
-#             tickers_signal = "Buy put"
-#             buy_index.append(1)
-#
-#         elif df["low"].iloc[-1] <= df["roll_min_cp"].iloc[-2] and \
-#                 df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2] and df['RSI'].iloc[-1] < 70 \
-#                 and len(portfolio) != 0 and len(
-#             open_orders) == 0 and sell_index == [] and buy_index == []:
-#             tickers_signal = "sell call and buy puts"
-#             sell_index.append(0)
-#             buy_index.append(1)
-#
-#
-#         elif df["high"].iloc[-1] >= df["roll_max_cp"].iloc[-2] and \
-#                 df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2] and df['RSI'].iloc[-1] > 30 \
-#                 and len(portfolio) != 0 and len(
-#             open_orders) == 0 and sell_index == [] and buy_index == []:
-#             tickers_signal = "sell put and buy calls"
-#             sell_index.append(1)
-#             buy_index.append(0)
-#
-#         elif (df["close"].iloc[-1] < df["close"].iloc[-2] - (1.5 * df["ATR"].iloc[-2]) \
-#               or (df["close"].iloc[-1] < df["low"].iloc[-2] and \
-#                   df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2]) or \
-#               2 <= self.call_option_volume[-1] <= self.call_option_volume.max() / 4) and \
-#                 self.stock_owned[0] != 0 and len(portfolio) != 0 and len(open_orders) == 0 and \
-#                 sell_index == [] and buy_index == []:
-#             print('1 ************************')
-#             tickers_signal = "sell call"
-#             sell_index.append(0)
-#
-#         elif (df["close"].iloc[-1] > df["close"].iloc[-2] + (1.5 * df["ATR"].iloc[-2]) \
-#               or (df["close"].iloc[-1] > df["high"].iloc[-2] and \
-#                   df["volume"].iloc[-1] > df["roll_max_vol"].iloc[-2]) or \
-#               2 <= self.put_option_volume[-1] <= self.put_option_volume.max() / 4) and \
-#                 self.stock_owned[1] != 0 and len(portfolio) != 0 and len(
-#             open_orders) == 0 and sell_index == [] and buy_index == []:
-#             print('2 ************************')
-#             tickers_signal = "sell put"
-#             sell_index.append(1)
-#
-#         print(tickers_signal)
-#         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-#
-#         if sell_index:
-#
-#             for i in sell_index:
-#                 print(self.stock_owned[i])
-#                 print(len(portfolio))
-#
-#                 if len(portfolio) != 0 and len(open_orders) == 0 and self.submitted == 0:
-#                     self.submitted = 1
-#                     contract = self.call_contract if i == 0 else self.put_contract
-#                     ib.qualifyContracts(contract)
-#                     price = self.call_option_price if i == 0 else self.put_option_price
-#                     self.flatten_position(contract, price)
-#             sell_index = []
-#
-#         if buy_index:
-#
-#             for i in buy_index:
-#                 contract = self.call_contract if i == 0 else self.put_contract
-#                 ib.qualifyContracts(contract)
-#
-#                 if cash_in_hand > (options_array[i] * 50) and cash_in_hand > portolio_value \
-#                         and ((self.stock_owned[0] == 0 and i == 0) or (self.stock_owned[1] == 0 and i == 1)) and len(
-#                     open_orders) == 0 and len(ib.positions()) == 0:
-#                     options_array[i] = self.call_option_price.ask + 0.25 if i == 0 else self.put_option_price.ask + 0.25
-#                     quantity = 1  # int((cash_in_hand/(options_array[i] * 50)))
-#                     self.open_position(contract=contract, quantity=quantity, options_array=options_array[i])
-#             buy_index = []
+                               ,res.option_history(res.get_contract('P', 2000)))
