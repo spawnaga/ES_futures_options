@@ -273,8 +273,7 @@ class Trade():
             f'realized PNL = {account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
             f'and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_price} and '
             f'stop loss ={stop_loss} and max call price = {self.max_call_price} compared to {self.call_option_price.bid} and max put price = '
-            f'{self.max_put_price} compared to {self.put_option_price.bid} and self.ATR = {self.ATR} and '
-            f'Resistance = {df["Resistance"][-1]} and Support = {df["Support"][-1]}')
+            f'{self.max_put_price} compared to {self.put_option_price.bid} and self.ATR = {self.ATR} and ')
         if self.call_cost !=0:
             print(f'Call cost was = {self.call_cost}')
         elif self.put_cost !=0:
