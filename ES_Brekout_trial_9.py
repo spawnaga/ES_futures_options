@@ -214,10 +214,9 @@ class Trade():
                 ib.qualifyContracts(put_position)
                 self.stock_owned[1] = each.position
                 self.put_cost =  0.25 * round(each.averageCost/50/0.25)
-
             else :
-                self.call_cost = 0
-                self.put_cost = 0
+                self.call_cost = -1
+                self.put_cost = -1
         self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
         ib.qualifyContracts(self.call_contract)
         self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
@@ -304,13 +303,13 @@ class Trade():
             buy_index.append(0)
 
         elif ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (df["ATR"].iloc[i - 1])) or
-               self.call_cost - self.call_contract_price >= stop_loss) and \
+              (self.call_cost - self.call_contract_price >= stop_loss)) and \
                 self.stock_owned[0] >= 1 and self.stock_owned[1] == 0:
             tickers_signal = "sell call"
             sell_index.append(0)
 
         elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (df["ATR"].iloc[i - 1])) or
-              self.put_cost - self.put_contract_price >= stop_loss) and self.stock_owned[0] == 0 \
+              (self.put_cost - self.put_contract_price >= stop_loss)) and self.stock_owned[0] == 0 \
                 and self.stock_owned[1] >= 1:
             tickers_signal = "sell put"
             sell_index.append(1)
@@ -392,10 +391,6 @@ class Trade():
                     quantity = 1  # int((cash_in_hand/(options_price[i] * 50)))
 
                     self.open_position(contract=contract, quantity=quantity, price=price)
-                    if i ==0 :
-                        self.call_cost = price.ask
-                    elif i == 1:
-                        self.put_cost = price.ask
                     self.option_position()
             buy_index = []
 
