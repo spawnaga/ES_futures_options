@@ -266,7 +266,7 @@ class Trade():
             self.max_put_price = self.put_option_price.bid
 
         i = -1
-        stop_loss = 1.5 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)
+        stop_loss = 1.25 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)
         self.ATR = 1 * round((df["ATR"].iloc[i]) / 0.25)
         print(
             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, '
@@ -303,15 +303,15 @@ class Trade():
             sell_index.append(1)
             buy_index.append(0)
 
-        elif ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (float(self.ATR) * df["ATR"].iloc[i - 1]) or
-               self.max_call_price - self.call_contract_price >= stop_loss)) and \
-                self.stock_owned[0] == 1 and self.stock_owned[1] == 0:
+        elif ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (df["ATR"].iloc[i - 1])) or
+               self.call_cost - self.call_contract_price >= stop_loss) and \
+                self.stock_owned[0] >= 1 and self.stock_owned[1] == 0:
             tickers_signal = "sell call"
             sell_index.append(0)
 
-        elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (float(self.ATR) * df["ATR"].iloc[i - 1])) or
-              self.max_put_price - self.put_contract_price) >= stop_loss and self.stock_owned[0] == 0 \
-                and self.stock_owned[1] == 1:
+        elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (df["ATR"].iloc[i - 1])) or
+              self.put_cost - self.put_contract_price >= stop_loss) and self.stock_owned[0] == 0 \
+                and self.stock_owned[1] >= 1:
             tickers_signal = "sell put"
             sell_index.append(1)
 
