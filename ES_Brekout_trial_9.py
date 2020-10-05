@@ -91,7 +91,7 @@ class get_data:
         ES_df['EMA_21'] = ta.EMA(ES_df['close'], timeperiod=21)
         ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
         ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
-        ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'])
+        ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'],timeperiod = 20)
         ES_df['roll_max_cp'] = ES_df['high'].rolling(20).max()
         ES_df['roll_min_cp'] = ES_df['low'].rolling(20).min()
         ES_df['roll_max_vol'] = ES_df['volume'].rolling(3).max()
@@ -106,8 +106,8 @@ class get_data:
 class Trade():
 
     def __init__(self):
-        self.call_cost = 0
-        self.put_cost = 0
+        self.call_cost = -1
+        self.put_cost = -1
         self.connect()
         self.call_option_volume = np.ones(20)
         self.put_option_volume = np.ones(20)
@@ -136,7 +136,7 @@ class Trade():
         print('flatttttttttttttttttttttttttttttttttttttttttttttttttttttt')
         portfolio = ib.portfolio()
         for each in portfolio:
-            if each.contract.right != contract.right or price <=0:
+            if each.contract.right != contract.right or price.bid <=0:
                 return
             ib.qualifyContracts(each.contract)
             if each.position > 0:  # Number of active Long portfolio
@@ -147,9 +147,9 @@ class Trade():
                 assert False
             totalQuantity = abs(each.position)
 
-            print(f'price = {price - 0.25}')
+            print(f'price = {price.bid}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
-            order = LimitOrder(action, totalQuantity, price) if each.position > 0 else MarketOrder(action,
+            order = LimitOrder(action, totalQuantity, price.bid) if each.position > 0 else MarketOrder(action,
                                                                                                    totalQuantity)
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(10)
@@ -163,7 +163,7 @@ class Trade():
         print('take________profit')
         portfolio = ib.portfolio()
         for each in portfolio:
-            if each.contract.right != contract.right or price <= 0.25 + (each.averageCost/50):
+            if each.contract.right != contract.right or (price.ask - 0.5) <= 0.25 + (each.averageCost/50):
                 print(price, each.averageCost)
                 print('cancel sell no profit yet')
                 return
@@ -176,9 +176,9 @@ class Trade():
                 assert False
             totalQuantity = abs(each.position)
 
-            print(f'price = {price - 0.25}')
+            print(f'price = {price.ask - 0.5}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
-            order = LimitOrder(action, totalQuantity, price) if each.position > 0 else MarketOrder(action,
+            order = LimitOrder(action, totalQuantity, price.ask - 0.5) if each.position > 0 else MarketOrder(action,
                                                                                                    totalQuantity)
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(10)
@@ -189,7 +189,7 @@ class Trade():
 
     def open_position(self, contract, quantity, price):
         order = LimitOrder('BUY', quantity,
-                           price)  # round(25 * round(price[i]/25, 2), 2))
+                           price.ask )  # round(25 * round(price[i]/25, 2), 2))
         trade = ib.placeOrder(contract, order)
         print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
         ib.sleep(10)
@@ -266,29 +266,28 @@ class Trade():
             self.max_put_price = self.put_option_price.bid
 
         i = -1
-        stop_loss = 1 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)
-        self.ATR = 0.50 * round((df["ATR"].iloc[i]) / 0.25)
+        stop_loss = 1.5 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)
+        self.ATR = 1 * round((df["ATR"].iloc[i]) / 0.25)
         print(
             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, '
             f'realized PNL = {account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
             f'and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_price} and '
             f'stop loss ={stop_loss} and max call price = {self.max_call_price} compared to {self.call_option_price.bid} and max put price = '
-            f'{self.max_put_price} compared to {self.put_option_price.bid} and self.ATR = {self.ATR} and ')
-        if self.call_cost !=0:
+            f'{self.max_put_price} compared to {self.put_option_price.bid} and self.ATR = {self.ATR} and df["ATR"] = {df["ATR"][-1]}')
+
+        if self.call_cost != -1:
             print(f'Call cost was = {self.call_cost}')
-        elif self.put_cost !=0:
+        elif self.put_cost != -1:
             print(f'Put cost was = {self.put_cost}')
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0:
-
             tickers_signal = "Buy call"
             buy_index.append(0)
 
         elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0:
-
             tickers_signal = "Buy put"
             buy_index.append(1)
 
@@ -297,7 +296,6 @@ class Trade():
             tickers_signal = "sell call and buy puts"
             sell_index.append(0)
             buy_index.append(1)
-
 
         elif df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and df["volume"].iloc[i] > df["roll_max_vol"].iloc[
             i - 1] and self.stock_owned[1] == 1 and self.stock_owned[0] == 0:
@@ -311,14 +309,11 @@ class Trade():
             tickers_signal = "sell call"
             sell_index.append(0)
 
-
         elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (float(self.ATR) * df["ATR"].iloc[i - 1])) or
               self.max_put_price - self.put_contract_price) >= stop_loss and self.stock_owned[0] == 0 \
                 and self.stock_owned[1] == 1:
             tickers_signal = "sell put"
             sell_index.append(1)
-
-
 
         elif (self.stock_owned[0] > 0) and (not df["volume"].iloc[i] > df["roll_max_vol"].iloc[
             i - 1] and ((2 < self.call_option_volume[-1] < self.call_option_volume[-1] / 4) or
@@ -355,12 +350,12 @@ class Trade():
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = self.call_option_price if i == 0 else self.put_option_price
-                    self.flatten_position(contract, price.bid)
+                    self.flatten_position(contract, price)
 
                     self.submitted = 0
                     if self.call_cost or self.put_cost:
-                        self.call_cost = 0
-                        self.put_cost = 0
+                        self.call_cost = -1
+                        self.put_cost = -1
             sell_index = []
         if take_profit:
             for i in take_profit:
@@ -375,12 +370,12 @@ class Trade():
                     ib.qualifyContracts(contract)
                     price = self.call_option_price if i == 0 else self.put_option_price
 
-                    self.take_profit(contract, price.ask - 0.50)
+                    self.take_profit(contract, price)
 
                     self.submitted = 0
                 if self.call_cost or self.put_cost:
-                    self.call_cost = 0
-                    self.put_cost = 0
+                    self.call_cost = -1
+                    self.put_cost = -1
             take_profit = []
         # buy_index = [0]
         if buy_index:
@@ -393,14 +388,14 @@ class Trade():
                         and (self.stock_owned[0] != 1 or self.stock_owned[1] != 1) and len(portfolio) == 0 and len(
                     open_orders) == 0 and self.submitted == 0:
                     self.submitted = 1
-                    price = self.call_option_price.ask - 0.25 if i == 0 else self.put_option_price.ask - 0.25
+                    price = self.call_option_price if i == 0 else self.put_option_price
                     quantity = 1  # int((cash_in_hand/(options_price[i] * 50)))
 
                     self.open_position(contract=contract, quantity=quantity, price=price)
                     if i ==0 :
-                        self.call_cost = price
+                        self.call_cost = price.ask
                     elif i == 1:
-                        self.put_cost = price
+                        self.put_cost = price.ask
                     self.option_position()
             buy_index = []
 
