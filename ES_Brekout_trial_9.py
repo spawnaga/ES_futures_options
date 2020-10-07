@@ -94,7 +94,7 @@ class get_data:
         ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'],timeperiod = 20)
         ES_df['roll_max_cp'] = ES_df['high'].rolling(20).max()
         ES_df['roll_min_cp'] = ES_df['low'].rolling(20).min()
-        ES_df['roll_max_vol'] = ES_df['volume'].rolling(5).max()
+        ES_df['roll_max_vol'] = ES_df['volume'].rolling(25).max()
         ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
         ES_df['EMA_21-EMA_9'] = ES_df['EMA_21'] - ES_df['EMA_9']
         ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
