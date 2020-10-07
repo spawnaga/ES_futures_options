@@ -131,7 +131,7 @@ class Trade():
         ib.errorEvent += self.error
         self.max_call_price = self.call_option_price.bid
         self.max_put_price = self.put_option_price.bid
-        self.account = []
+        self.account = ib.accountSummary()
 
     def flatten_position(self, contract, price):
 
@@ -231,16 +231,10 @@ class Trade():
         sell_index = []
         take_profit = []
         tickers_signal = "Hold"
-        self.account = ib.accountSummary()
-        try:
-            cash_in_hand = float(self.account[22].value)
-            portolio_value = float(self.account[29].value)
-        except IndexError:
 
-            account = ib.accountSummary()
-            ib.sleep(0)
-            cash_in_hand = float(account[22].value)
-            portolio_value = float(account[29].value)
+        cash_in_hand = float(self.account[22].value)
+        portolio_value = float(self.account[29].value)
+
         portfolio = ib.portfolio()
         open_orders = ib.reqAllOpenOrders()
 
@@ -271,8 +265,8 @@ class Trade():
         stop_loss = 1.25 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)
         self.ATR = round((df["ATR"].iloc[i]) / 0.25)
         print(
-            f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, '
-            f'realized PNL = {account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
+            f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {self.account[32].value}, '
+            f'realized PNL = {self.account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
             f'and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_price} and '
             f'stop loss ={stop_loss} and max call price = {self.max_call_price} compared to {self.call_option_price.bid} and max put price = '
             f'{self.max_put_price} compared to {self.put_option_price.bid} and df["ATR"] = {df["ATR"][-1]}')
@@ -432,7 +426,7 @@ class Trade():
 
 def main():
     ib.updatePortfolioEvent += trading.option_position
-    ib.accountValueEvent += trading.account_update
+    ib.accountSummaryEvent += trading.account_update
     ib.errorEvent += trading.error
     trading.ES.updateEvent += trading.trade
     ib.run()
