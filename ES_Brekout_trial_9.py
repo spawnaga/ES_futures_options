@@ -4,7 +4,7 @@ import pandas as pd
 pd.options.mode.chained_assignment = None
 import sys
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 import talib as ta
 from talib import MA_Type
 from ib_insync import *
@@ -277,13 +277,15 @@ class Trade():
         elif self.put_cost != -1:
             print(f'Put cost was = {self.put_cost}')
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
-                df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
+                df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
+                and (not (is_time_between(time(13,50), time(14,00)) or (is_time_between(time(15,00), time(15,15))))) and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
             tickers_signal = "Buy call"
             buy_index.append(0)
 
         elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
-                df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and \
+                df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]\
+                and (not (is_time_between(time(13,50), time(14,00)) or (is_time_between(time(15,00), time(15,15))))) and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
             tickers_signal = "Buy put"
             buy_index.append(1)
@@ -301,14 +303,14 @@ class Trade():
             buy_index.append(0)
 
         elif ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (self.ATR + df["ATR"].iloc[i - 1])) or
-              (self.call_cost - self.call_contract_price >= stop_loss)) and \
+              (self.call_cost - self.call_contract_price >= stop_loss) or (is_time_between(time(13,50), time(14,00)))) and \
                 self.stock_owned[0] >= 1 and self.stock_owned[1] == 0:
             tickers_signal = "sell call"
             sell_index.append(0)
 
         elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1])) or
-              (self.put_cost - self.put_contract_price >= stop_loss)) and self.stock_owned[0] == 0 \
-                and self.stock_owned[1] >= 1:
+              (self.put_cost - self.put_contract_price >= stop_loss) or (is_time_between(time(13,50), time(14,00)))) and \
+              self.stock_owned[0] == 0 and self.stock_owned[1] >= 1:
             tickers_signal = "sell put"
             sell_index.append(1)
 
@@ -334,17 +336,17 @@ class Trade():
 
         print(self.stock_owned)
         print(tickers_signal)
-        print(f'df["close"].iloc[i] = {df["close"].iloc[i]}, df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1]) = {df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1])}')
-        print(f'self.put_cost - self.put_contract_price = {self.put_cost - self.put_contract_price} , stop_loss = {stop_loss}')
-        # print(self.max_call_price / self.call_cost)
-        # print(df["volume"].iloc[i], df["roll_max_vol"].iloc[i-1])
-        # print((self.stock_owned[0] > 0) and
-        #       (df["volume"].iloc[i] < df["roll_max_vol"].iloc[
-        #     i - 1] and
-        #        ((2 < self.call_option_volume[-1] < self.call_option_volume[-1] / 4)
-        #         or
-        #                 (self.max_call_price / self.call_cost) > 1.20))
-        #       and len(open_orders) == 0 and self.submitted == 0)
+        # print(f'df["close"].iloc[i] = {df["close"].iloc[i]}, df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1]) = {df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1])}')
+        # print(f'self.put_cost - self.put_contract_price = {self.put_cost - self.put_contract_price} , stop_loss = {stop_loss}')
+        # # print(self.max_call_price / self.call_cost)
+        # # print(df["volume"].iloc[i], df["roll_max_vol"].iloc[i-1])
+        # # print((self.stock_owned[0] > 0) and
+        # #       (df["volume"].iloc[i] < df["roll_max_vol"].iloc[
+        # #     i - 1] and
+        # #        ((2 < self.call_option_volume[-1] < self.call_option_volume[-1] / 4)
+        # #         or
+        # #                 (self.max_call_price / self.call_cost) > 1.20))
+        # #       and len(open_orders) == 0 and self.submitted == 0)
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
         if sell_index:
@@ -412,10 +414,12 @@ class Trade():
             self.connect()
             main()
 
+
     def connect(self):
         ib.disconnect()
         ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
         ib.client.MaxRequests = 55
+        print('reconnected')
 
     def roll_contract(self, option_vol, value):
         option_vol = np.roll(option_vol, -1)
@@ -425,7 +429,13 @@ class Trade():
     def account_update(self, value = None):
         self.account = ib.accountSummary()
 
-
+def is_time_between(begin_time, end_time, check_time=None):
+    # If check time is not given, default to current UTC time
+    check_time = check_time or datetime.now().time()
+    if begin_time < end_time:
+        return check_time >= begin_time and check_time <= end_time
+    else: # crosses midnight
+        return check_time >= begin_time or check_time <= end_time
 def main():
     ib.updatePortfolioEvent += trading.option_position
     ib.accountValueEvent += trading.account_update
@@ -435,18 +445,14 @@ def main():
 
 
 if __name__ == '__main__':
-    ib = IB()
-    res = get_data()
-    trading = Trade()
-    while True:
-        try:
-            main()
+    try:
+        ib = IB()
+        res = get_data()
+        trading = Trade()
+        main()
+    except Exception as e:
+        print(e)
+    except KeyboardInterrupt:
+        print('User stopped running')
 
-        except:
-            print('first try to connect failed waiting a minute and retry')
-            try:
-                trading.error()
-                main()
-            except:
 
-                main()
