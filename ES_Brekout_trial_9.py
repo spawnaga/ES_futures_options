@@ -131,6 +131,7 @@ class Trade():
         ib.errorEvent += self.error
         self.max_call_price = self.call_option_price.bid
         self.max_put_price = self.put_option_price.bid
+        self.account = []
 
     def flatten_position(self, contract, price):
 
@@ -230,10 +231,10 @@ class Trade():
         sell_index = []
         take_profit = []
         tickers_signal = "Hold"
-        account = ib.accountSummary()
+        self.account = ib.accountSummary()
         try:
-            cash_in_hand = float(account[22].value)
-            portolio_value = float(account[29].value)
+            cash_in_hand = float(self.account[22].value)
+            portolio_value = float(self.account[29].value)
         except IndexError:
 
             account = ib.accountSummary()
@@ -268,7 +269,7 @@ class Trade():
 
         i = -1
         stop_loss = 1.25 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)
-        # self.ATR = 1 * round((df["ATR"].iloc[i]) / 0.25)
+        self.ATR = round((df["ATR"].iloc[i]) / 0.25)
         print(
             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, '
             f'realized PNL = {account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
@@ -425,13 +426,13 @@ class Trade():
         option_vol[-1] = value
         return option_vol
 
-    # def account_update(self, value = None):
-    #     self.account = ib.accountSummary()
+    def account_update(self, value = None):
+        self.account = ib.accountSummary()
 
 
 def main():
     ib.updatePortfolioEvent += trading.option_position
-    # ib.accountValueEvent += trading.account_update
+    ib.accountValueEvent += trading.account_update
     ib.errorEvent += trading.error
     trading.ES.updateEvent += trading.trade
     ib.run()
