@@ -131,7 +131,7 @@ class Trade():
         ib.errorEvent += self.error
         self.max_call_price = self.call_option_price.bid
         self.max_put_price = self.put_option_price.bid
-        self.account = []
+        self.account = ib.accountSummary()
 
     def flatten_position(self, contract, price):
 
@@ -179,9 +179,9 @@ class Trade():
                 assert False
             totalQuantity = abs(each.position)
 
-            print(f'price = {price.ask - 0.5}')
+            print(f'price = {price.ask}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
-            order = LimitOrder(action, totalQuantity, price.ask - 0.5)
+            order = LimitOrder(action, totalQuantity, price.ask)
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(10)
             if not trade.orderStatus.remaining == 0:
@@ -194,7 +194,7 @@ class Trade():
                            price.ask )  # round(25 * round(price[i]/25, 2), 2))
         trade = ib.placeOrder(contract, order)
         print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
-        ib.sleep(30)
+        ib.sleep(15)
         if not trade.orderStatus.status == "Filled":
             ib.cancelOrder(order)
         self.submitted = 0
@@ -231,16 +231,11 @@ class Trade():
         sell_index = []
         take_profit = []
         tickers_signal = "Hold"
-        self.account = ib.accountSummary()
-        try:
-            cash_in_hand = float(self.account[22].value)
-            portolio_value = float(self.account[29].value)
-        except IndexError:
 
-            account = ib.accountSummary()
-            ib.sleep(0)
-            cash_in_hand = float(account[22].value)
-            portolio_value = float(account[29].value)
+
+        cash_in_hand = float(self.account[22].value)
+        portolio_value = float(self.account[29].value)
+
         portfolio = ib.portfolio()
         open_orders = ib.reqAllOpenOrders()
 
@@ -269,10 +264,10 @@ class Trade():
 
         i = -1
         stop_loss = 1.75 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)
-        self.ATR = 1.5 * round((df["ATR"].iloc[i]) / 0.25)
+        self.ATR = 0.40 * round((df["ATR"].iloc[i]) / 0.25)
         print(
-            f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {account[32].value}, '
-            f'realized PNL = {account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
+            f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {self.account[32].value}, '
+            f'realized PNL = {self.account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
             f'and ES = {data_raw.iloc[-1, 3]} and [call,puts] values are = {options_price} and '
             f'stop loss ={stop_loss} and max call price = {self.max_call_price} compared to {self.call_option_price.bid} and max put price = '
             f'{self.max_put_price} compared to {self.put_option_price.bid} and df["ATR"] = {df["ATR"][-1]}')
@@ -305,13 +300,13 @@ class Trade():
             sell_index.append(1)
             buy_index.append(0)
 
-        elif ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (df["ATR"].iloc[i - 1])) or
+        elif ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (self.ATR + df["ATR"].iloc[i - 1])) or
               (self.call_cost - self.call_contract_price >= stop_loss)) and \
                 self.stock_owned[0] >= 1 and self.stock_owned[1] == 0:
             tickers_signal = "sell call"
             sell_index.append(0)
 
-        elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (df["ATR"].iloc[i - 1])) or
+        elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1])) or
               (self.put_cost - self.put_contract_price >= stop_loss)) and self.stock_owned[0] == 0 \
                 and self.stock_owned[1] >= 1:
             tickers_signal = "sell put"
@@ -339,6 +334,8 @@ class Trade():
 
         print(self.stock_owned)
         print(tickers_signal)
+        print(f'df["close"].iloc[i] = {df["close"].iloc[i]}, df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1]) = {df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1])}')
+        print(f'self.put_cost - self.put_contract_price = {self.put_cost - self.put_contract_price} , stop_loss = {stop_loss}')
         # print(self.max_call_price / self.call_cost)
         # print(df["volume"].iloc[i], df["roll_max_vol"].iloc[i-1])
         # print((self.stock_owned[0] > 0) and
@@ -357,7 +354,6 @@ class Trade():
 
                 if len(portfolio) > 0 and len(open_orders) == 0 and self.submitted == 0:
                     self.submitted = 1
-                    print('selling for stop loss')
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = self.call_option_price if i == 0 else self.put_option_price
