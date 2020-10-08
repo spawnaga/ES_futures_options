@@ -133,98 +133,6 @@ class Trade():
         self.max_put_price = self.put_option_price.bid
         self.account = ib.accountSummary()
 
-    def flatten_position(self, contract, price):
-
-        print('flatttttttttttttttttttttttttttttttttttttttttttttttttttttt')
-        portfolio = ib.portfolio()
-        for each in portfolio:
-            print(price.bid)
-            if each.contract.right != contract.right or price.bid <=0:
-                return
-            ib.qualifyContracts(each.contract)
-            if each.position > 0:  # Number of active Long portfolio
-                action = 'SELL'  # to offset the long portfolio
-            elif each.position < 0:  # Number of active Short portfolio
-                action = 'BUY'  # to offset the short portfolio
-            else:
-                assert False
-            totalQuantity = abs(each.position)
-
-            print(f'price = {price.bid-0.25}')
-            print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
-            order = LimitOrder(action, totalQuantity, price.bid - 0.25) if each.position > 0 else MarketOrder(action,
-                                                                                                   totalQuantity)
-            trade = ib.placeOrder(each.contract, order)
-            ib.sleep(10)
-            if not trade.orderStatus.remaining == 0:
-                ib.cancelOrder(order)
-            self.submitted = 0
-            print(trade.orderStatus.status)
-
-    def take_profit(self, contract, price):
-
-        print('take________profit')
-        portfolio = ib.portfolio()
-        for each in portfolio:
-            if each.contract.right != contract.right or (price.ask - 0.5) <= 0.25 + (each.averageCost/50):
-                print(price, each.averageCost)
-                print('cancel sell no profit yet')
-                return
-            ib.qualifyContracts(each.contract)
-            if each.position > 0:  # Number of active Long portfolio
-                action = 'SELL'  # to offset the long portfolio
-            elif each.position < 0:  # Number of active Short portfolio
-                action = 'BUY'  # to offset the short portfolio
-            else:
-                assert False
-            totalQuantity = abs(each.position)
-
-            print(f'price = {price.ask}')
-            print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
-            order = LimitOrder(action, totalQuantity, price.ask)
-            trade = ib.placeOrder(each.contract, order)
-            ib.sleep(10)
-            if not trade.orderStatus.remaining == 0:
-                ib.cancelOrder(order)
-            self.submitted = 0
-            print(trade.orderStatus.status)
-
-    def open_position(self, contract, quantity, price):
-        order = LimitOrder('BUY', quantity,
-                           price.ask )  # round(25 * round(price[i]/25, 2), 2))
-        trade = ib.placeOrder(contract, order)
-        print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
-        ib.sleep(15)
-        if not trade.orderStatus.status == "Filled":
-            ib.cancelOrder(order)
-        self.submitted = 0
-        print(trade.orderStatus.status)
-        self.block_buying = 0
-
-    def option_position(self, event=None):
-        self.stock_owned = np.zeros(2)
-        position = ib.portfolio()
-        call_position = None
-        put_position = None
-        for each in position:
-            if each.contract.right == 'C':
-                call_position = each.contract
-                ib.qualifyContracts(call_position)
-                self.stock_owned[0] = each.position
-                self.call_cost = 0.25 * round(each.averageCost/50/0.25)
-            elif each.contract.right == 'P':
-                put_position = each.contract
-                ib.qualifyContracts(put_position)
-                self.stock_owned[1] = each.position
-                self.put_cost =  0.25 * round(each.averageCost/50/0.25)
-            else :
-                self.call_cost = -1
-                self.put_cost = -1
-        self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
-        ib.qualifyContracts(self.call_contract)
-        self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
-        ib.qualifyContracts(self.put_contract)
-
     def trade(self, ES, hasNewBar=None):
 
         buy_index = []
@@ -365,6 +273,7 @@ class Trade():
                     if self.call_cost or self.put_cost:
                         self.call_cost = -1
                         self.put_cost = -1
+                    self.option_position()
             sell_index = []
         if take_profit:
             for i in take_profit:
@@ -382,6 +291,7 @@ class Trade():
                     self.take_profit(contract, price)
 
                     self.submitted = 0
+                    self.option_position()
                 if self.call_cost or self.put_cost:
                     self.call_cost = -1
                     self.put_cost = -1
@@ -414,6 +324,97 @@ class Trade():
             self.connect()
             os.system('ES_Brekout_trial_9.py')
 
+    def flatten_position(self, contract, price):
+
+        print('flatttttttttttttttttttttttttttttttttttttttttttttttttttttt')
+        portfolio = ib.portfolio()
+        for each in portfolio:
+            print(price.bid)
+            if each.contract.right != contract.right or price.bid <=0:
+                return
+            ib.qualifyContracts(each.contract)
+            if each.position > 0:  # Number of active Long portfolio
+                action = 'SELL'  # to offset the long portfolio
+            elif each.position < 0:  # Number of active Short portfolio
+                action = 'BUY'  # to offset the short portfolio
+            else:
+                assert False
+            totalQuantity = abs(each.position)
+
+            print(f'price = {price.bid-0.25}')
+            print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
+            order = LimitOrder(action, totalQuantity, price.bid - 0.25) if each.position > 0 else MarketOrder(action,
+                                                                                                   totalQuantity)
+            trade = ib.placeOrder(each.contract, order)
+            ib.sleep(10)
+            if not trade.orderStatus.remaining == 0:
+                ib.cancelOrder(order)
+            self.submitted = 0
+            print(trade.orderStatus.status)
+
+    def take_profit(self, contract, price):
+
+        print('take________profit')
+        portfolio = ib.portfolio()
+        for each in portfolio:
+            if each.contract.right != contract.right or (price.ask - 0.5) <= 0.25 + (each.averageCost/50):
+                print(price, each.averageCost)
+                print('cancel sell no profit yet')
+                return
+            ib.qualifyContracts(each.contract)
+            if each.position > 0:  # Number of active Long portfolio
+                action = 'SELL'  # to offset the long portfolio
+            elif each.position < 0:  # Number of active Short portfolio
+                action = 'BUY'  # to offset the short portfolio
+            else:
+                assert False
+            totalQuantity = abs(each.position)
+
+            print(f'price = {price.ask}')
+            print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
+            order = LimitOrder(action, totalQuantity, price.ask)
+            trade = ib.placeOrder(each.contract, order)
+            ib.sleep(10)
+            if not trade.orderStatus.remaining == 0:
+                ib.cancelOrder(order)
+            self.submitted = 0
+            print(trade.orderStatus.status)
+
+    def open_position(self, contract, quantity, price):
+        order = LimitOrder('BUY', quantity,
+                           price.ask )  # round(25 * round(price[i]/25, 2), 2))
+        trade = ib.placeOrder(contract, order)
+        print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
+        ib.sleep(15)
+        if not trade.orderStatus.status == "Filled":
+            ib.cancelOrder(order)
+        self.submitted = 0
+        print(trade.orderStatus.status)
+        self.block_buying = 0
+
+    def option_position(self, event=None):
+        self.stock_owned = np.zeros(2)
+        position = ib.portfolio()
+        call_position = None
+        put_position = None
+        for each in position:
+            if each.contract.right == 'C':
+                call_position = each.contract
+                ib.qualifyContracts(call_position)
+                self.stock_owned[0] = each.position
+                self.call_cost = 0.25 * round(each.averageCost/50/0.25)
+            elif each.contract.right == 'P':
+                put_position = each.contract
+                ib.qualifyContracts(put_position)
+                self.stock_owned[1] = each.position
+                self.put_cost =  0.25 * round(each.averageCost/50/0.25)
+            else :
+                self.call_cost = -1
+                self.put_cost = -1
+        self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
+        ib.qualifyContracts(self.call_contract)
+        self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
+        ib.qualifyContracts(self.put_contract)
 
     def connect(self):
         ib.disconnect()
