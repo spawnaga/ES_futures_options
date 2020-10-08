@@ -10,7 +10,7 @@ from talib import MA_Type
 from ib_insync import *
 from ressup import ressup
 import nest_asyncio
-
+import os
 nest_asyncio.apply()
 sys.setrecursionlimit(10 ** 9)
 
@@ -412,7 +412,7 @@ class Trade():
             ib.disconnect()
             ib.sleep(10)
             self.connect()
-            main()
+            os.system('ES_Brekout_trial_9.py')
 
 
     def connect(self):
