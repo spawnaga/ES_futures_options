@@ -440,7 +440,7 @@ def is_time_between(begin_time, end_time, check_time=None):
 def main():
     ib.updatePortfolioEvent += trading.option_position
     ib.accountValueEvent += trading.account_update
-    ib.positionEvent += self.option_position
+    ib.positionEvent += trading.option_position
     ib.errorEvent += trading.error
     trading.ES.updateEvent += trading.trade
     ib.run()
