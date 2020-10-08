@@ -277,14 +277,14 @@ class Trade():
         elif self.put_cost != -1:
             print(f'Put cost was = {self.put_cost}')
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
-                df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
+                df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
                 and (not (is_time_between(time(13,50), time(14,00)) or (is_time_between(time(15,00), time(15,15))))) and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
             tickers_signal = "Buy call"
             buy_index.append(0)
 
         elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
-                df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]\
+                df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1]\
                 and (not (is_time_between(time(13,50), time(14,00)) or (is_time_between(time(15,00), time(15,15))))) and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
             tickers_signal = "Buy put"
@@ -302,13 +302,13 @@ class Trade():
             sell_index.append(1)
             buy_index.append(0)
 
-        elif ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (self.ATR + df["ATR"].iloc[i - 1])) or
+        elif ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (df["ATR"].iloc[i - 1])) or
               (self.call_cost - self.call_contract_price >= stop_loss) or (is_time_between(time(13,50), time(14,00)))) and \
                 self.stock_owned[0] >= 1 and self.stock_owned[1] == 0:
             tickers_signal = "sell call"
             sell_index.append(0)
 
-        elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1])) or
+        elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (df["ATR"].iloc[i - 1])) or
               (self.put_cost - self.put_contract_price >= stop_loss) or (is_time_between(time(13,50), time(14,00)))) and \
               self.stock_owned[0] == 0 and self.stock_owned[1] >= 1:
             tickers_signal = "sell put"
