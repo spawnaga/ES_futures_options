@@ -140,7 +140,8 @@ class Trade():
         sell_index = [] # set initial sell index to None
         take_profit = [] # set initial take profit index to None
         tickers_signal = "Hold"
-
+        if np.random.randint(10) <= 2:
+            self.account_update()
 
         cash_in_hand = float(self.account[22].value) # set variables values
         portolio_value = float(self.account[29].value) # set variables values
@@ -173,7 +174,7 @@ class Trade():
 
         i = -1 # use to get the last data in dataframe
         stop_loss = 1.75 + 0.50 * round((df["ATR"].iloc[i]) / 0.25) # set stop loss variable according to ATR
-        self.ATR = 0.40 * round((df["ATR"].iloc[i]) / 0.25)
+        ATR_factor = 2.25 * round((df["ATR"].iloc[i]) / 0.25)
         print(
             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {self.account[32].value}, '
             f'realized PNL = {self.account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
@@ -211,13 +212,13 @@ class Trade():
             sell_index.append(1)
             buy_index.append(0)
 
-        elif  ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (2.25 * df["ATR"].iloc[i - 1])) or
+        elif  ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (ATR_factor * df["ATR"].iloc[i - 1])) or
          (self.call_cost - self.call_contract_price >= stop_loss)) or (is_time_between(time(13,50), time(14,00))) and \
                 self.stock_owned[0] >= 1 and self.stock_owned[1] == 0: # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
 
-        elif  ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (2.25 * df["ATR"].iloc[i - 1])) or
+        elif  ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1])) or
          (self.put_cost - self.put_contract_price >= stop_loss)) or (is_time_between(time(13,50), time(14,00))) and \
               self.stock_owned[0] == 0 and self.stock_owned[1] >= 1: # conditions to sell puts to stop loss
             tickers_signal = "sell put"
@@ -245,17 +246,6 @@ class Trade():
 
         print(self.stock_owned)
         print(tickers_signal)
-        # print(f'df["close"].iloc[i] = {df["close"].iloc[i]}, df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1]) = {df["close"].iloc[i - 1] + (self.ATR + df["ATR"].iloc[i - 1])}')
-        # print(f'self.put_cost - self.put_contract_price = {self.put_cost - self.put_contract_price} , stop_loss = {stop_loss}')
-        # # print(self.max_call_price / self.call_cost)
-        # # print(df["volume"].iloc[i], df["roll_max_vol"].iloc[i-1])
-        # # print((self.stock_owned[0] > 0) and
-        # #       (df["volume"].iloc[i] < df["roll_max_vol"].iloc[
-        # #     i - 1] and
-        # #        ((2 < self.call_option_volume[-1] < self.call_option_volume[-1] / 4)
-        # #         or
-        # #                 (self.max_call_price / self.call_cost) > 1.20))
-        # #       and len(open_orders) == 0 and self.submitted == 0)
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
         if sell_index: # start selling to stop loss
@@ -275,10 +265,10 @@ class Trade():
                         self.call_cost = -1
                         self.put_cost = -1
                     self.option_position()
-            sell_index = []
+
         if take_profit: # start selling to take profit
             for i in take_profit:
-                # self.stock_owned[i] = 0
+
                 print(self.stock_owned[i])
                 print(len(portfolio))
 
@@ -296,8 +286,7 @@ class Trade():
                 if self.call_cost or self.put_cost:
                     self.call_cost = -1
                     self.put_cost = -1
-            take_profit = []
-        # buy_index = [0]
+
         if buy_index: # start buying to start trade
 
             for i in buy_index:
@@ -313,19 +302,17 @@ class Trade():
                     self.block_buying=1
                     self.open_position(contract=contract, quantity=quantity, price=price)
                     self.option_position()
-            buy_index = []
+
 
     def error(self, reqId=None, errorCode=None, errorString=None, contract=None): # error handler
         print(errorCode, errorString)
         if errorCode == 10197 or errorCode == 10182 or errorCode == 200 or errorCode == 321 or errorCode == 10182:
             for task in asyncio.all_tasks():
                 task.cancel()
-            # ib.disconnect()
 
-            ib.sleep(0)
+            ib.sleep(5)
             main()
-            # self.connect()
-            # os.system('ES_Brekout_trial_9.py')
+
 
     def flatten_position(self, contract, price): # flat position to stop loss
 
@@ -357,7 +344,7 @@ class Trade():
 
     def take_profit(self, contract, price): # start taking profit
 
-        print('take________profit')
+        print('take_________________profit')
         portfolio = ib.portfolio()
         for each in portfolio:
             if each.contract.right != contract.right or (price.ask - 0.5) <= 0.25 + (each.averageCost/50): # check if profit did happen
@@ -431,6 +418,9 @@ class Trade():
         return option_vol
 
     def account_update(self, value = None):
+        for i in ib.reqAllOpenOrders():
+            ib.cancelOrder(i)
+            ib.sleep(5)
         self.account = ib.accountSummary()
 
 def is_time_between(begin_time, end_time, check_time=None):
@@ -441,7 +431,6 @@ def is_time_between(begin_time, end_time, check_time=None):
     else: # crosses midnight
         return check_time >= begin_time or check_time <= end_time
 
-
 def main():
     ib.updatePortfolioEvent += trading.option_position
     ib.accountValueEvent += trading.account_update
@@ -449,7 +438,6 @@ def main():
     ib.errorEvent += trading.error
     trading.ES.updateEvent += trading.trade
     ib.run()
-
 
 if __name__ == '__main__':
     try:
@@ -459,8 +447,7 @@ if __name__ == '__main__':
         main()
     except Exception as e:
         print(e)
+        ib.disconnect()
     except KeyboardInterrupt:
         print('User stopped running')
         ib.disconnect()
-
-
