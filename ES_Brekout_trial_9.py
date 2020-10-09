@@ -129,6 +129,9 @@ class Trade():
         self.max_call_price = self.call_option_price.bid # define max call price (use to compare to current price)
         self.max_put_price = self.put_option_price.bid # define max put price (use to compare to current price)
         self.account = ib.accountSummary() # get initial account value
+        for i in ib.reqAllOpenOrders():
+            ib.cancelOrder(i)
+            ib.sleep(5)
 
 
     def trade(self, ES, hasNewBar=None):
@@ -208,14 +211,14 @@ class Trade():
             sell_index.append(1)
             buy_index.append(0)
 
-        elif ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (df["ATR"].iloc[i - 1])) or
-              (self.call_cost - self.call_contract_price >= stop_loss) or (is_time_between(time(13,50), time(14,00)))) and \
+        elif  ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (2.25 * df["ATR"].iloc[i - 1])) or
+         (self.call_cost - self.call_contract_price >= stop_loss)) or (is_time_between(time(13,50), time(14,00))) and \
                 self.stock_owned[0] >= 1 and self.stock_owned[1] == 0: # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
 
-        elif ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (df["ATR"].iloc[i - 1])) or
-              (self.put_cost - self.put_contract_price >= stop_loss) or (is_time_between(time(13,50), time(14,00)))) and \
+        elif  ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (2.25 * df["ATR"].iloc[i - 1])) or
+         (self.put_cost - self.put_contract_price >= stop_loss)) or (is_time_between(time(13,50), time(14,00))) and \
               self.stock_owned[0] == 0 and self.stock_owned[1] >= 1: # conditions to sell puts to stop loss
             tickers_signal = "sell put"
             sell_index.append(1)
@@ -317,10 +320,12 @@ class Trade():
         if errorCode == 10197 or errorCode == 10182 or errorCode == 200 or errorCode == 321 or errorCode == 10182:
             for task in asyncio.all_tasks():
                 task.cancel()
-            ib.disconnect()
-            ib.sleep(10)
-            self.connect()
-            os.system('ES_Brekout_trial_9.py')
+            # ib.disconnect()
+
+            ib.sleep(0)
+            main()
+            # self.connect()
+            # os.system('ES_Brekout_trial_9.py')
 
     def flatten_position(self, contract, price): # flat position to stop loss
 
@@ -342,7 +347,7 @@ class Trade():
             print(f'price = {price.bid-0.25}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
             order = LimitOrder(action, totalQuantity, price.bid - 0.25) if each.position > 0 else MarketOrder(action,
-                                                                                                   totalQuantity) # closing position as fast as possible
+                                                     totalQuantity) # closing position as fast as possible
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(10) # waiting 10 secs
             if not trade.orderStatus.remaining == 0:
@@ -368,9 +373,9 @@ class Trade():
                 assert False
             totalQuantity = abs(each.position)
 
-            print(f'price = {price.ask}')
+            print(f'price = {price.ask-0.25}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
-            order = LimitOrder(action, totalQuantity, price.ask)
+            order = LimitOrder(action, totalQuantity, price.ask-0.25)
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(10)
             if not trade.orderStatus.remaining == 0:
@@ -456,5 +461,6 @@ if __name__ == '__main__':
         print(e)
     except KeyboardInterrupt:
         print('User stopped running')
+        ib.disconnect()
 
 
