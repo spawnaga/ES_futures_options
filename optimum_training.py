@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from ressup import ressup
 import nest_asyncio
 nest_asyncio.apply()
+ib = IB()
 class get_data:
 
     def next_exp_weekday(self):
@@ -138,13 +139,17 @@ class Trade:
             ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                         currency='USD')
             ib.qualifyContracts(ES)
-            var_ret = {}
-            var = 0.25
-            data_raw = res.options(res.options(res.ES(), res.option_history(res.get_contract('C', 2000))),
+
+            ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
+                                       barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
+                                       timeout=10) # start data collection for ES-Mini
+            data_raw = res.options(res.options(res.ES(ES), res.option_history(res.get_contract('C', 2000))),
                                     res.option_history(res.get_contract('P', 2000)))
             df = data_raw[
                 ['high', 'low', 'close', 'volume', 'roll_max_vol', 'roll_max_cp', 'roll_min_cp', 'ATR', 'ES_C_close',
                  'ES_P_close']]
+                        var_ret = {}
+            var = 0.25
             buy_index = []
             sell_index = []
             stock_owned = np.zeros(2)
@@ -288,16 +293,16 @@ class Trade:
             print('Max roll var is at', vol)
             return ATR, vol
 
-        def connect(self):
-            ib.disconnect()
-            ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
-            ib.client.MaxRequests = 55
+    def connect(self):
+        ib.disconnect()
+        ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
+        ib.client.MaxRequests = 55
 
 endDateTime = ''
 No_days = '1 D'
 interval = '1 min'
 trade = Trade()
-ib = IB()
+
 trade.connect()
 res = get_data()
 

@@ -450,4 +450,4 @@ if __name__ == '__main__':
         ib.disconnect()
     except KeyboardInterrupt:
         print('User stopped running')
-        ib.disconnect()
+        # ib.disconnect()
