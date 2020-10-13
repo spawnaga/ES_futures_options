@@ -182,7 +182,7 @@ class Trade():
             self.max_put_price = self.put_option_price.bid
 
         i = -1 # use to get the last data in dataframe
-        stop_loss = 1.25 + 0.50 * round((df["ATR"].iloc[i]) / 0.25) # set stop loss variable according to ATR
+        stop_loss = 1.75 + 0.50 * round((df["ATR"].iloc[i]) / 0.25) # set stop loss variable according to ATR
         ATR_factor = 2.25 * round((df["ATR"].iloc[i]) / 0.25)
         print(
             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {self.account[32].value} '
@@ -317,12 +317,7 @@ class Trade():
 
     def error(self, reqId=None, errorCode=None, errorString=None, contract=None): # error handler
         print(errorCode, errorString)
-        if errorCode == 10197 or errorCode == 10182 or errorCode == 200 or errorCode == 321 or errorCode == 10182:
-            for task in asyncio.all_tasks():
-                task.cancel()
 
-            ib.sleep(5)
-            main()
 
 
     def flatten_position(self, contract, price): # flat position to stop loss
@@ -432,7 +427,6 @@ class Trade():
         self.update += 1
 
         if self.update % 5 != 0:
-            ib.reqGlobalCancel()
             return
         self.account = ib.accountSummary()
 
