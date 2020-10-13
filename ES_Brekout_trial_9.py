@@ -225,15 +225,13 @@ class Trade():
             sell_index.append(1)
             buy_index.append(0)
 
-        elif  ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (ATR_factor * df["ATR"].iloc[i - 1])) or
-         (self.call_cost - self.call_contract_price >= stop_loss)) or (is_time_between(time(13,50), time(14,00))) and \
-                self.stock_owned[0] >= 1  and self.stock_owned[1] == 0: # conditions to sell calls to stop loss
+        elif (self.stock_owned[0] > 0) and ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (ATR_factor * df["ATR"].iloc[i - 1])) or
+         (self.call_cost - self.call_contract_price >= stop_loss)) or (is_time_between(time(13,50), time(14,00))) : # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
 
-        elif  ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1])) or
-         (self.put_cost - self.put_contract_price >= stop_loss)) or (is_time_between(time(13,50), time(14,00))) and \
-              self.stock_owned[0] == 0 and self.stock_owned[1] >= 1: # conditions to sell puts to stop loss
+        elif (self.stock_owned[1] > 0) and ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1])) or
+         (self.put_cost - self.put_contract_price >= stop_loss)) or (is_time_between(time(13,50), time(14,00))) : # conditions to sell puts to stop loss
             tickers_signal = "sell put"
             sell_index.append(1)
 
@@ -244,7 +242,7 @@ class Trade():
             tickers_signal = "take calls profit"
             take_profit.append(0)
 
-        elif (self.stock_owned[1] > 0) and ((self.max_put_price - self.put_option_price.bid - 1 <= stop_loss) or \
+        elif (self.stock_owned[1] > 0) and ((self.max_put_price - self.put_option_price.bid  <= stop_loss) or \
                 ((2 < self.put_option_volume[-1] < np.max(self.put_option_volume) / 4) or \
                  (self.max_put_price / self.put_cost) > 1.20)) and len(portfolio) > 0 \
                 and len(open_orders) == 0 and ((self.put_option_price.bid - 0.25) >= (0.25 + self.put_cost)) and self.submitted == 0 :
@@ -273,7 +271,7 @@ class Trade():
                     price = self.call_option_price if i == 0 else self.put_option_price
                     self.flatten_position(contract, price)
 
-                    self.submitted = 0
+
                     if self.call_cost or self.put_cost:
                         self.call_cost = -1
                         self.put_cost = -1
@@ -345,7 +343,9 @@ class Trade():
             ib.sleep(10) # waiting 10 secs
             if not trade.orderStatus.remaining == 0:
                 ib.cancelOrder(order) # canceling order if not filled
-            self.submitted = 0
+                self.submitted = 1
+            else:
+                self.submitted = 0
             print(trade.orderStatus.status)
 
     def take_profit(self, contract, price): # start taking profit
