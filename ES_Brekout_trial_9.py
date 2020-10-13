@@ -146,8 +146,7 @@ class Trade():
         if n >= 7:
 
             self.account_update()
-        elif n< 2:
-
+        else:
             self.option_position()
 
         portfolio = ib.portfolio()  # get current portfolio
@@ -191,11 +190,11 @@ class Trade():
             f'stop loss ={stop_loss} and max call price = {self.max_call_price} compared to {self.call_option_price.bid} and max put price = '
             f'{self.max_put_price} compared to {self.put_option_price.bid} and df["ATR"] = {df["ATR"][-1]} and ATR_factor = {ATR_factor}')
 
-        if self.call_cost != -1:
+        if self.stock_owned[0]>0:
             print(f'Call cost was = {self.call_cost}')
             print((self.max_call_price - self.call_cost ) *  (
                 self.stock_owned[0]))
-        elif self.put_cost != -1:
+        elif self.stock_owned[1]>0:
             print(f'Put cost was = {self.put_cost}')
             print((self.max_put_price - self.put_cost ) * (
                 self.stock_owned[1]))
@@ -389,7 +388,7 @@ class Trade():
         self.block_buying = 0
 
     def option_position(self, event=None):
-        self.stock_owned = np.zeros(2)
+        # self.stock_owned = np.zeros(2)
         position = ib.portfolio()
         call_position = None
         put_position = None
