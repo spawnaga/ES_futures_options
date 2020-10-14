@@ -138,16 +138,10 @@ class Trade():
         sell_index = [] # set initial sell index to None
         take_profit = [] # set initial take profit index to None
         tickers_signal = "Hold"
-        n= np.random.randint(10)
-        # if n <= 3:
-        #     print(n)
-        #     self.option_position()
 
-        if n >= 7:
+        self.account_update()
 
-            self.account_update()
-        else:
-            self.option_position()
+        self.option_position()
 
         portfolio = ib.portfolio()  # get current portfolio
         open_orders = ib.reqAllOpenOrders()  # get current open orders
@@ -192,12 +186,10 @@ class Trade():
 
         if self.stock_owned[0]>0:
             print(f'Call cost was = {self.call_cost}')
-            print((self.max_call_price - self.call_cost ) *  (
-                self.stock_owned[0]))
+            print((self.call_option_price.bid - self.call_cost ))
         elif self.stock_owned[1]>0:
             print(f'Put cost was = {self.put_cost}')
-            print((self.max_put_price - self.put_cost ) * (
-                self.stock_owned[1]))
+            print((self.put_option_price.bid - self.put_cost ))
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
                 and (not (is_time_between(time(13,50), time(14,00)) or (is_time_between(time(15,00), time(15,15))))) and \
@@ -388,7 +380,7 @@ class Trade():
         self.block_buying = 0
 
     def option_position(self, event=None):
-        # self.stock_owned = np.zeros(2)
+        self.stock_owned = np.zeros(2)
         position = ib.portfolio()
         call_position = None
         put_position = None
