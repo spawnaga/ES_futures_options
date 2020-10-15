@@ -1,7 +1,5 @@
 import numpy as np
 import pandas as pd
-
-pd.options.mode.chained_assignment = None
 import sys
 from datetime import datetime, timedelta, time
 import talib as ta
@@ -12,6 +10,7 @@ import nest_asyncio
 
 nest_asyncio.apply()
 sys.setrecursionlimit(10 ** 9)
+pd.options.mode.chained_assignment = None
 
 
 class get_data:
@@ -19,19 +18,21 @@ class get_data:
         self.ATR = 1
         self.vol_roll_period = 20
 
-    def next_exp_weekday(self):
+    @staticmethod
+    def next_exp_weekday():
         weekdays = {2: [5, 6, 0], 4: [0, 1, 2], 0: [3, 4]}
         today = datetime.today().weekday()
         for exp, day in weekdays.items():
             if today in day:
                 return exp
 
-    def next_weekday(self, d, weekday):
+    @staticmethod
+    def next_weekday(d, weekday):
 
         days_ahead = weekday - d.weekday()
         if days_ahead <= 0:  # Target day already happened this week
             days_ahead += 7
-        date_to_return = d + timedelta(days_ahead)  # 0 = Monday, 1=Tuself.ESday, 2=Wednself.ESday...
+        date_to_return = d + timedelta(days_ahead)  # 0 = Monday, 1=Tus self.ES day, 2=Wed self.ES day...
         return date_to_return.strftime('%Y%m%d')
 
     def get_strikes_and_expiration(self):
@@ -102,7 +103,7 @@ class get_data:
         return ES_df
 
 
-class Trade():
+class Trade:
 
     def __init__(self):
         self.connect()  # make connection
@@ -141,7 +142,6 @@ class Trade():
         buy_index = []  # set initial buy index to None
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
-        tickers_signal = "Hold"
 
         self.account_update()
 
@@ -201,32 +201,30 @@ class Trade():
                 self.stock_owned[1]))
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
-                and (
-                not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
-                buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[
-            1] == 0 and self.block_buying == 0:  # conditions to buy calls
+                and (not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
+                buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
+            # conditions to buy calls
             tickers_signal = "Buy call"
             buy_index.append(0)
 
         elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
-                and (
-                not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
-                buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[
-            1] == 0 and self.block_buying == 0:  # conditions to sell calls
+                and (not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
+                buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
+            # conditions to sell calls
             tickers_signal = "Buy put"
             buy_index.append(1)
 
         elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and df["volume"].iloc[i] > df["roll_max_vol"].iloc[
-            i - 1] and self.stock_owned[0] == 1 and self.stock_owned[
-            1] == 0 and self.block_buying == 0:  # conditions to sell calls and buy puts if trend reversed
+            i - 1] and self.stock_owned[0] == 1 and self.stock_owned[1] == 0 and self.block_buying == 0:
+            # conditions to sell calls and buy puts if trend reversed
             tickers_signal = "sell call and buy puts"
             sell_index.append(0)
             buy_index.append(1)
 
         elif df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and df["volume"].iloc[i] > df["roll_max_vol"].iloc[
-            i - 1] and self.stock_owned[1] == 1 and self.stock_owned[
-            0] == 0 and self.block_buying == 0:  # conditions to buy calls and sell puts if trend reversed
+            i - 1] and self.stock_owned[1] == 1 and self.stock_owned[0] == 0 and self.block_buying == 0:
+            # conditions to buy calls and sell puts if trend reversed
             tickers_signal = "sell put and buy calls"
             sell_index.append(1)
             buy_index.append(0)
@@ -378,7 +376,7 @@ class Trade():
             print(f'price = {price.bid - 0.25}')
             print(f'Take profit Position: {action} {totalQuantity} {contract.localSymbol}')
             print(price)
-            order = LimitOrder(action, totalQuantity, each.bid - 0.25)
+            order = LimitOrder(action, totalQuantity, price.bid - 0.25)
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(15)
             if not trade.orderStatus.remaining == 0:
@@ -424,7 +422,8 @@ class Trade():
         ib.qualifyContracts(self.put_contract)
         return (self.call_contract, self.put_contract)
 
-    def connect(self):
+    @staticmethod
+    def connect():
         ib.disconnect()
         ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
         ib.client.MaxRequests = 55
@@ -443,7 +442,7 @@ class Trade():
         self.account = ib.accountSummary()
 
         if self.update > 10:
-            self.upadate = 0
+            self.update = 0
 
 
 def is_time_between(begin_time, end_time, check_time=None):
