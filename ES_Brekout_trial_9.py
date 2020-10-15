@@ -232,11 +232,14 @@ class Trade:
             sell_index.append(1)
             buy_index.append(0)
 
+
         elif (self.stock_owned[0] > 0) and (
-                (df["close"].iloc[i] < df["close"].iloc[i - 1] - (ATR_factor * df["ATR"].iloc[i - 1])) or (
-                is_time_between(time(13, 50), time(14, 00)))):  # conditions to sell calls to stop loss
+                (df["close"].iloc[i] < df["close"].iloc[i - 1] - (ATR_factor * df["ATR"].iloc[i - 1])) or
+                (self.call_cost - self.call_contract_price >= stop_loss)) or (
+                is_time_between(time(13, 50), time(14, 00))):  # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
+
 
         elif (self.stock_owned[1] > 0) and (
                 (df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1])) or
@@ -245,7 +248,7 @@ class Trade:
             tickers_signal = "sell put"
             sell_index.append(1)
 
-        elif (self.stock_owned[0] > 0) and ((self.call_cost - self.call_contract_price >= stop_loss/3) or
+        elif (self.stock_owned[0] > 0) and ((self.max - self.call_contract_price >= stop_loss/3) or
                                             (2 < self.call_option_volume[-1] < np.max(self.call_option_volume) / 4) or
                                             (self.max_call_price / self.call_cost) > 1.10) and len(portfolio) > 0 \
                 and len(open_orders) == 0 and ((self.call_option_price.bid - 0.25) >= (
@@ -253,7 +256,7 @@ class Trade:
             tickers_signal = "take calls profit"
             take_profit.append(0)
 
-        elif (self.stock_owned[1] > 0) and ((self.put_cost - self.put_contract_price >= stop_loss/3) or
+        elif (self.stock_owned[1] > 0) and ((self.max_put_price - self.put_contract_price <= stop_loss/3) or
                                             (2 < self.put_option_volume[-1] < np.max(self.put_option_volume) / 4) or
                                             (self.max_put_price / self.put_cost) > 1.10) and len(portfolio) > 0 \
                 and len(open_orders) == 0 and (
@@ -325,7 +328,7 @@ class Trade:
 
     def error(self, reqId=None, errorCode=None, errorString=None, contract=None):  # error handler
         print(errorCode, errorString)
-        if errorCode == 2104 or errorCode == 2108 or errorCode == 2158 or errorCode == 10182:
+        if errorCode in [2104, 2108, 2158, 10182, 1102]:
             print('attempt to restart data check')
             self.trade(self.ES)
 
