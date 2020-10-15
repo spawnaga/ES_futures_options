@@ -138,7 +138,12 @@ class Trade:
         self.error_wait = 10
 
     def trade(self, ES, hasNewBar=None):
-
+        self.call_option_price = ib.reqMktData(self.option_position()[0], '', False, False)  # start data collection for calls
+        self.put_option_price = ib.reqMktData(self.option_position()[1], '', False, False)  # start data collection for puts
+        self.call_option_volume = self.roll_contract(self.call_option_volume,
+                                                     self.call_option_price.bidSize)  # update call options volume
+        self.put_option_volume = self.roll_contract(self.put_option_volume,
+                                                    self.put_option_price.bidSize)  # update put options volume
         buy_index = []  # set initial buy index to None
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
@@ -160,10 +165,7 @@ class Trade:
 
         options_price = np.array(
             [self.call_contract_price, self.put_contract_price])  # set an array for options prices
-        self.call_option_volume = self.roll_contract(self.call_option_volume,
-                                                     self.call_option_price.bidSize)  # update call options volume
-        self.put_option_volume = self.roll_contract(self.put_option_volume,
-                                                    self.put_option_price.bidSize)  # update put options volume
+
 
         data_raw = res.ES(ES)  # get data from get data class
 
@@ -243,15 +245,15 @@ class Trade:
             tickers_signal = "sell put"
             sell_index.append(1)
 
-        elif (self.stock_owned[0] > 0) and (2 < self.call_option_volume[-1] < np.max(self.call_option_volume) / 4) or \
-                (self.max_call_price / self.call_cost) > 1.20 and len(portfolio) > 0 \
+        elif (self.stock_owned[0] > 0) and ((2 < self.call_option_volume[-1] < np.max(self.call_option_volume) / 4) or \
+                (self.max_call_price / self.call_cost) > 1.10) and len(portfolio) > 0 \
                 and len(open_orders) == 0 and ((self.call_option_price.bid - 0.25) >= (
                 0.25 + self.call_cost)) and self.submitted == 0:  # conditions to sell calls to take profits
             tickers_signal = "take calls profit"
             take_profit.append(0)
 
-        elif (self.stock_owned[1] > 0) and (2 < self.put_option_volume[-1] < np.max(self.put_option_volume) / 4) or \
-                (self.max_put_price / self.put_cost) > 1.20 and len(portfolio) > 0 \
+        elif (self.stock_owned[1] > 0) and ((2 < self.put_option_volume[-1] < np.max(self.put_option_volume) / 4) or \
+                (self.max_put_price / self.put_cost) > 1.10) and len(portfolio) > 0 \
                 and len(open_orders) == 0 and (
                 (self.put_option_price.bid - 0.25) >= (0.25 + self.put_cost)) and self.submitted == 0:
             # conditions to sell puts to take profits
@@ -321,9 +323,7 @@ class Trade:
 
     def error(self, reqId=None, errorCode=None, errorString=None, contract=None):  # error handler
         print(errorCode, errorString)
-        if errorCode == 10182 or errorCode == 10197:
-            ib.sleep(5)
-            self.trade(self.ES)
+
 
     def flatten_position(self, contract, price):  # flat position to stop loss
 
@@ -360,7 +360,7 @@ class Trade:
         print('take_________________profit')
         portfolio = ib.portfolio()
         for each in portfolio:
-            if (price.bid - 0.25) <= 0.25 + (each.averageCost / 50):  # check if profit did happen
+            if (price.bid - 0.5) <= 0.25 + (each.averageCost / 50):  # check if profit did happen
                 print(price.bid, each.averageCost / 50)
                 print('cancel sell no profit yet')
                 return
@@ -442,7 +442,7 @@ class Trade:
         self.account = ib.accountSummary()
 
         if self.update > 10:
-            self.update = 0
+            self.upadate = 0
 
 
 def is_time_between(begin_time, end_time, check_time=None):
