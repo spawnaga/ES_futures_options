@@ -311,7 +311,7 @@ class Trade():
         print(errorCode, errorString)
         if errorCode == 10182 or errorCode == 10197:
             ib.sleep(5)
-            self.connect()
+            self.trade
 
     def flatten_position(self, contract, price): # flat position to stop loss
 
