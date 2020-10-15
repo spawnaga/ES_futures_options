@@ -195,12 +195,10 @@ class Trade:
 
         if self.stock_owned[0] > 0:
             print(f'Call cost was = {self.call_cost}')
-            print((self.max_call_price - self.call_cost) * (
-                self.stock_owned[0]))
+            print((self.max_call_price - self.call_cost))
         elif self.stock_owned[1] > 0:
             print(f'Put cost was = {self.put_cost}')
-            print((self.max_put_price - self.put_cost) * (
-                self.stock_owned[1]))
+            print((self.max_put_price - self.put_cost))
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
                 and (not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
@@ -323,6 +321,13 @@ class Trade:
 
     def error(self, reqId=None, errorCode=None, errorString=None, contract=None):  # error handler
         print(errorCode, errorString)
+        if errorCode == 2104 or errorCode == 2108 or errorCode == 2158:
+            print('attempt to restart data check')
+            self.trade(self.ES)
+        elif errorCode == 10182:
+            ib.sleep(60)
+            print('attempt reconnect after timeout')
+            main()
 
 
     def flatten_position(self, contract, price):  # flat position to stop loss
