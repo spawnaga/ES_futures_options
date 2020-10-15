@@ -3,14 +3,12 @@ import pandas as pd
 
 pd.options.mode.chained_assignment = None
 import sys
-import asyncio
 from datetime import datetime, timedelta, time
 import talib as ta
 from talib import MA_Type
 from ib_insync import *
 from ressup import ressup
 import nest_asyncio
-import os
 
 nest_asyncio.apply()
 sys.setrecursionlimit(10 ** 9)
@@ -204,7 +202,7 @@ class Trade():
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
                 and (
-        not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
+                not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[
             1] == 0 and self.block_buying == 0:  # conditions to buy calls
             tickers_signal = "Buy call"
@@ -213,7 +211,7 @@ class Trade():
         elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
                 and (
-        not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
+                not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[
             1] == 0 and self.block_buying == 0:  # conditions to sell calls
             tickers_signal = "Buy put"
@@ -236,14 +234,14 @@ class Trade():
         elif (self.stock_owned[0] > 0) and (
                 (df["close"].iloc[i] < df["close"].iloc[i - 1] - (ATR_factor * df["ATR"].iloc[i - 1])) or
                 (self.call_cost - self.call_contract_price >= stop_loss)) or (
-        is_time_between(time(13, 50), time(14, 00))):  # conditions to sell calls to stop loss
+                is_time_between(time(13, 50), time(14, 00))):  # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
 
         elif (self.stock_owned[1] > 0) and (
                 (df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1])) or
                 (self.put_cost - self.put_contract_price >= stop_loss)) or (
-        is_time_between(time(13, 50), time(14, 00))):  # conditions to sell puts to stop loss
+                is_time_between(time(13, 50), time(14, 00))):  # conditions to sell puts to stop loss
             tickers_signal = "sell put"
             sell_index.append(1)
 
@@ -327,7 +325,7 @@ class Trade():
         print(errorCode, errorString)
         if errorCode == 10182 or errorCode == 10197:
             ib.sleep(5)
-            self.trade()
+            self.trade(self.ES)
 
     def flatten_position(self, contract, price):  # flat position to stop loss
 
