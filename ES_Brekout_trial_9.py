@@ -138,10 +138,10 @@ class Trade:
         self.error_wait = 10
 
     def trade(self, ES, hasNewBar=None):
-        self.call_option_price = ib.reqMktData(self.option_position()[0], '', False,
-                                               False)  # start data collection for calls
-        self.put_option_price = ib.reqMktData(self.option_position()[1], '', False,
-                                              False)  # start data collection for puts
+        # self.call_option_price = ib.reqMktData(self.option_position()[0], '', False,
+        #                                        False)  # start data collection for calls
+        # self.put_option_price = ib.reqMktData(self.option_position()[1], '', False,
+        #                                       False)  # start data collection for puts
         self.call_option_volume = self.roll_contract(self.call_option_volume,
                                                      self.call_option_price.bidSize)  # update call options volume
         self.put_option_volume = self.roll_contract(self.put_option_volume,
@@ -150,9 +150,9 @@ class Trade:
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
 
-        self.account_update()
-
-        self.option_position()
+        # self.account_update()
+        #
+        # self.option_position()
 
         portfolio = ib.portfolio()  # get current portfolio
         open_orders = ib.reqAllOpenOrders()  # get current open orders
@@ -186,7 +186,7 @@ class Trade:
 
         i = -1  # use to get the last data in dataframe
         stop_loss = 1.75 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
-        ATR_factor = 2.25 * round((df["ATR"].iloc[i]) / 0.25)
+        ATR_factor = 1.25 #2.25 * round((df["ATR"].iloc[i]) / 0.25)
         print(
             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {self.account[32].value} '
             f'realized PNL = {self.account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
@@ -196,10 +196,10 @@ class Trade:
 
         if self.stock_owned[0] > 0:
             print(f'Call cost was = {self.call_cost}')
-            print((self.max_call_price - self.call_cost))
+            print((self.call_option_price.bid - self.call_cost))
         elif self.stock_owned[1] > 0:
             print(f'Put cost was = {self.put_cost}')
-            print((self.max_put_price - self.put_cost))
+            print((self.put_option_price.bid - self.put_cost))
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
                 and (
@@ -212,7 +212,7 @@ class Trade:
         elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
                 and (
-        not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
+            not (is_time_between(time(13, 50), time(14, 00)) or (is_time_between(time(15, 00), time(15, 15))))) and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
             # conditions to sell calls
             tickers_signal = "Buy put"
@@ -235,20 +235,21 @@ class Trade:
 
         elif (self.stock_owned[0] > 0) and (
                 (df["close"].iloc[i] < df["close"].iloc[i - 1] - (ATR_factor * df["ATR"].iloc[i - 1])) or
-                (self.call_cost - self.call_contract_price >= stop_loss)) or (
-                is_time_between(time(13, 50), time(14, 00))):  # conditions to sell calls to stop loss
+                (self.call_cost - self.call_contract_price >= stop_loss) or (
+                is_time_between(time(13, 50), time(14, 00)))) :  # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
 
 
-        elif (self.stock_owned[1] > 0) and (
+        elif (self.stock_owned[1] > 0)  and ((
                 (df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1])) or
                 (self.put_cost - self.put_contract_price >= stop_loss)) or (
-                is_time_between(time(13, 50), time(14, 00))):  # conditions to sell puts to stop loss
+                is_time_between(time(13, 50), time(14, 00)))):  # conditions to sell puts to stop loss
             tickers_signal = "sell put"
             sell_index.append(1)
 
-        elif (self.stock_owned[0] > 0) and ((self.max - self.call_contract_price >= stop_loss/3) or
+
+        elif (self.stock_owned[0] > 0) and ((self.max_call_price - self.call_contract_price >= stop_loss/3) or
                                             (2 < self.call_option_volume[-1] < np.max(self.call_option_volume) / 4) or
                                             (self.max_call_price / self.call_cost) > 1.10) and len(portfolio) > 0 \
                 and len(open_orders) == 0 and ((self.call_option_price.bid - 0.25) >= (
@@ -328,7 +329,7 @@ class Trade:
 
     def error(self, reqId=None, errorCode=None, errorString=None, contract=None):  # error handler
         print(errorCode, errorString)
-        if errorCode in [2104, 2108, 2158, 10182, 1102]:
+        if errorCode in [2104, 2108, 2158, 10182, 1102, 2106]:
             print('attempt to restart data check')
             self.trade(self.ES)
 
@@ -463,7 +464,7 @@ def is_time_between(begin_time, end_time, check_time=None):
 
 def main():
     ib.updatePortfolioEvent += trading.option_position
-    # ib.accountSummaryEvent += trading.account_update
+    ib.accountSummaryEvent += trading.account_update
     ib.errorEvent += trading.error
     trading.ES.updateEvent += trading.trade
     ib.run()
