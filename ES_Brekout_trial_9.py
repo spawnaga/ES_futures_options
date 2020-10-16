@@ -186,7 +186,7 @@ class Trade:
 
         i = -1  # use to get the last data in dataframe
         stop_loss = 1.75 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
-        ATR_factor = 1.25 #2.25 * round((df["ATR"].iloc[i]) / 0.25)
+        ATR_factor = 1.25 * round((df["ATR"].iloc[i]) / 0.25)
         print(
             f'cash in hand = {cash_in_hand}, portfolio value = {portolio_value}, unrealized PNL = {self.account[32].value} '
             f'realized PNL = {self.account[33].value}, holding = {self.stock_owned[0]} calls and {self.stock_owned[1]} puts '
