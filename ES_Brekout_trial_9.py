@@ -79,7 +79,7 @@ class get_data:
         ES_df['minutes'] = ES_df.index.strftime('%M').astype(int)
         ES_df['hours + minutes'] = ES_df['hours'] * 100 + ES_df['minutes']
         ES_df['Day_of_week'] = ES_df.index.dayofweek
-        ES_df['Resistance'], ES_df['Support'] = self.res_sup(ES_df)
+        # ES_df['Resistance'], ES_df['Support'] = self.res_sup(ES_df)
         ES_df['RSI'] = ta.RSI(ES_df['close'])
         ES_df['macd'], ES_df['macdsignal'], ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26,
                                                                         signalperiod=9)
