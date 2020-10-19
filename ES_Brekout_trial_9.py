@@ -427,31 +427,49 @@ class Trade:
         if self.skip:
             return
         # gets options position or set contracts for future positions
-        print('in option position')
-        # self.stock_owned = np.zeros(2)
-        position = ib.portfolio()
-        self.portfolio = position
-        call_position = None
-        put_position = None
-        for each in position:
-            if each.contract.right == 'C':
-                call_position = each.contract
+        if not isinstance(event, PortfolioItem):
+            position = ib.portfolio()
+            self.portfolio = position
+            call_position = None
+            put_position = None
+            for each in position:
+                if each.contract.right == 'C':
+                    call_position = each.contract
+                    ib.qualifyContracts(call_position)
+                    self.stock_owned[0] = each.position
+                    self.call_cost = 0.25 * round(each.averageCost / 50 / 0.25)
+                elif each.contract.right == 'P':
+                    put_position = each.contract
+                    ib.qualifyContracts(put_position)
+                    self.stock_owned[1] = each.position
+                    self.put_cost = 0.25 * round(each.averageCost / 50 / 0.25)
+                else:
+                    self.call_cost = -1
+                    self.put_cost = -1
+                    self.stock_owned = [0, 0]
+        else:
+            # self.stock_owned = np.zeros(2)
+            call_position = None
+            put_position = None
+
+            if event.contract.right == 'C':
+                call_position = event.contract
                 ib.qualifyContracts(call_position)
-                self.stock_owned[0] = each.position
-                self.call_cost = 0.25 * round(each.averageCost / 50 / 0.25)
-            elif each.contract.right == 'P':
-                put_position = each.contract
+                self.stock_owned[0] = event.position
+                self.call_cost = 0.25 * round(event.averageCost / 50 / 0.25)
+            elif event.contract.right == 'P':
+                put_position = event.contract
                 ib.qualifyContracts(put_position)
-                self.stock_owned[1] = each.position
-                self.put_cost = 0.25 * round(each.averageCost / 50 / 0.25)
+                self.stock_owned[1] = event.position
+                self.put_cost = 0.25 * round(event.averageCost / 50 / 0.25)
             else:
                 self.call_cost = -1
                 self.put_cost = -1
-                self.stock_owned =[0,0]
-        # if not self.call_contract == res.get_contract('C', 2000) or not self.call_contract == call_position:
+                self.stock_owned = np.zeros(2)
+
         self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
         ib.qualifyContracts(self.call_contract)
-        # elif not self.put_contract == res.get_contract('P', 2000) or not self.put_contract == put_position:
+
         self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
         ib.qualifyContracts(self.put_contract)
 
