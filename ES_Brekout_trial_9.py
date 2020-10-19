@@ -137,6 +137,8 @@ class Trade:
         self.account = ib.accountSummary()  # get initial account value
         self.portfolio_value = float(self.account[29].value)  # set variables values
         self.cash_in_hand = float(self.account[22].value)  # set variables values
+        self.unrealizedPNL = float(self.account[32].value)
+        self.realizedPNL = float(self.account[33].value)
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
         ib.reqGlobalCancel()  # Making sure all orders for buying selling are canceled before starting trading
 
@@ -174,7 +176,7 @@ class Trade:
             print((self.put_option_price.bid - self.put_cost))
 
         buy_index, sell_index, take_profit = self.strategy(df, open_orders)  # set initial buy index to None
-        sell_index = [1]
+
         if sell_index:  # start selling to stop loss
 
             for i in sell_index:
@@ -187,9 +189,6 @@ class Trade:
 
                     self.flatten_position(contract, price)
 
-                    if self.call_cost or self.put_cost:
-                        self.call_cost = -1
-                        self.put_cost = -1
                     self.option_position()
 
         if take_profit:  # start selling to take profit
@@ -207,7 +206,7 @@ class Trade:
 
                     self.submitted = 0
                     self.option_position()
-                if self.call_cost or self.put_cost:
+
                     self.call_cost = -1
                     self.put_cost = -1
 
@@ -252,7 +251,7 @@ class Trade:
 
         print(
             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
-            f' {self.account[32].value} realized PNL = {self.account[33].value}, holding = {self.stock_owned[0]} '
+            f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
             f'calls and {self.stock_owned[1]} puts and ES = {self.data_raw.iloc[-1, 3]} and [call,puts] values are = '
             f'{self.options_price} and stop loss ={stop_loss} and max call price = {self.max_call_price} compared to '
             f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
@@ -472,11 +471,15 @@ class Trade:
         return option_vol
 
     def account_update(self, value=None):
-        self.update += 1
 
-        if self.update % 5 != 0:
-            return
-        self.account = ib.accountSummary()
+        self.update += 1
+        self.cash_in_hand = float(value.value) if value.tag == 'TotalCashValue' else self.cash_in_hand
+        self.portfolio_value = float(value.value) if value.tag == 'GrossPositionValue' else self.portfolio_value
+        self.unrealizedPNL = float(value.value) if value.tag == 'UnrealizedPnL' else self.unrealizedPNL
+        self.realizedPNL = float(value.value) if value.tag == 'RealizedPnL' else self.realizedPNL
+        # if self.update % 5 != 0:
+        #     return
+        # self.account = ib.accountSummary()
 
         if self.update > 10:
             self.upadate = 0
