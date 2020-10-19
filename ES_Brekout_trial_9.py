@@ -146,7 +146,6 @@ class Trade:
         buy_index = []  # set initial buy index to None
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
-        self.option_position()
         self.call_option_volume = self.roll_contract(self.call_option_volume,
                                                      self.call_option_price.bidSize)  # update call options volume
         self.put_option_volume = self.roll_contract(self.put_option_volume,
@@ -317,7 +316,7 @@ class Trade:
 
         elif (self.stock_owned[1] > 0) and ((self.max_put_price - self.put_contract_price <= stop_loss / 3) or
                                             (2 < self.put_option_volume[-1] < np.max(self.put_option_volume) / 4) or
-                                            (self.max_put_price / self.put_cost) > 1.10) and len(self.portfolio) > 0 \
+                                            (self.max_put_price / self.put_cost) > 1.20) and len(self.portfolio) > 0 \
                 and len(open_orders) == 0 and (
                 (self.put_option_price.bid - 0.25) >= (0.25 + self.put_cost)) and self.submitted == 0:
             # conditions to sell puts to take profits
@@ -444,18 +443,11 @@ class Trade:
         # elif not self.put_contract == res.get_contract('P', 2000) or not self.put_contract == put_position:
         self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
         ib.qualifyContracts(self.put_contract)
-        try:
-            self.call_option_price = ib.reqMktData(self.call_contract, '', False,
-                                                   False)  # start data collection for calls
-            self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
-        except Exception as e:
-            print(e)
-            ib.cancelMktData(self.call_option_price)
-            ib.cancelMktData(self.put_option_price)
-            self.call_option_price = ib.reqMktData(self.call_contract, '', False,
-                                                   False)  # start data collection for calls
-            self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
-        return self.call_contract, self.put_contract
+
+        self.call_option_price = ib.reqMktData(self.call_contract, '', False,
+                                               False)  # start data collection for calls
+        self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
+
 
     @staticmethod
     def connect():
