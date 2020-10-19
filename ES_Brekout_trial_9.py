@@ -252,7 +252,7 @@ class Trade:
         i = -1  # use to get the last data in dataframe
         
         stop_loss = 1.75 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
-        ATR_factor = 1.25 * round((df["ATR"].iloc[i]) / 0.25)
+        ATR_factor = 1.5
 
         print(
             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
@@ -348,6 +348,7 @@ class Trade:
         if errorCode in [2104, 2108, 2158, 10182, 1102, 2106]:
             print('attempt to restart data check')
             self.trade(self.ES)
+            self.skip = False
         else:
             self.skip = True
 
