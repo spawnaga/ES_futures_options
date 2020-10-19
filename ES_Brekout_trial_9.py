@@ -259,7 +259,7 @@ class Trade:
             f'{self.put_option_price.bid} and df["ATR"] = {df["ATR"][-1]} and ATR_factor = {ATR_factor}')
 
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
-                df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
+                df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
                 and (not (is_time_between(time(13, 50), time(14, 00)) or
                           (is_time_between(time(15, 00), time(15, 15))))) and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
@@ -268,7 +268,7 @@ class Trade:
             buy_index.append(0)
 
         elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
-                df["volume"].iloc[i] > 1.2 * df["roll_max_vol"].iloc[i - 1] \
+                df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
                 and (not (is_time_between(time(13, 50), time(14, 00)) or
                           (is_time_between(time(15, 00), time(15, 15))))) and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
@@ -361,9 +361,9 @@ class Trade:
                 assert False
             totalQuantity = abs(each.position)  # check holding quantity
 
-            print(f'price = {price.bid - 0.25}')
+            print(f'price = {price.bid}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
-            order = LimitOrder(action, totalQuantity, price.bid - 0.25) if each.position > 0 \
+            order = LimitOrder(action, totalQuantity, price.bid) if each.position > 0 \
                 else MarketOrder(action, totalQuantity)  # closing position as fast as possible
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(10)  # waiting 10 secs
@@ -490,13 +490,13 @@ def main():
 
 if __name__ == '__main__':
     ib = IB()
-    # try:
-    res = get_data()
-    trading = Trade()
-    main()
-    # except Exception as e:
-    #     print(e)
-    #     ib.disconnect()
-    # except KeyboardInterrupt:
-    #     print('User stopped running')
-    #     ib.disconnect()
+    try:
+        res = get_data()
+        trading = Trade()
+        main()
+    except Exception as e:
+        print(e)
+        ib.disconnect()
+    except KeyboardInterrupt:
+        print('User stopped running')
+        ib.disconnect()
