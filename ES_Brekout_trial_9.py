@@ -74,33 +74,33 @@ class get_data:
         ES_df = util.df(ES)
         ES_df.set_index('date', inplace=True)
         ES_df.index = pd.to_datetime(ES_df.index)
-        ES_df['hours'] = ES_df.index.strftime('%H').astype(int)
-        ES_df['minutes'] = ES_df.index.strftime('%M').astype(int)
-        ES_df['hours + minutes'] = ES_df['hours'] * 100 + ES_df['minutes']
-        ES_df['Day_of_week'] = ES_df.index.dayofweek
+        # ES_df['hours'] = ES_df.index.strftime('%H').astype(int)
+        # ES_df['minutes'] = ES_df.index.strftime('%M').astype(int)
+        # ES_df['hours + minutes'] = ES_df['hours'] * 100 + ES_df['minutes']
+        # ES_df['Day_of_week'] = ES_df.index.dayofweek
         ES_df['RSI'] = ta.RSI(ES_df['close'])
-        ES_df['macd'], ES_df['macdsignal'], ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26,
-                                                                        signalperiod=9)
-        ES_df['macd - macdsignal'] = ES_df['macd'] - ES_df['macdsignal']
-        ES_df['MA_9'] = ta.MA(ES_df['close'], timeperiod=9)
-        ES_df['MA_21'] = ta.MA(ES_df['close'], timeperiod=21)
-        ES_df['MA_200'] = ta.MA(ES_df['close'], timeperiod=200)
-        ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
-        ES_df['EMA_21'] = ta.EMA(ES_df['close'], timeperiod=21)
-        ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
-        ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
+        # ES_df['macd'], ES_df['macdsignal'], ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26,
+        #                                                                 signalperiod=9)
+        # ES_df['macd - macdsignal'] = ES_df['macd'] - ES_df['macdsignal']
+        # ES_df['MA_9'] = ta.MA(ES_df['close'], timeperiod=9)
+        # ES_df['MA_21'] = ta.MA(ES_df['close'], timeperiod=21)
+        # ES_df['MA_200'] = ta.MA(ES_df['close'], timeperiod=200)
+        # ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
+        # ES_df['EMA_21'] = ta.EMA(ES_df['close'], timeperiod=21)
+        # ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
+        # ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
         ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], timeperiod=20)
         ES_df['roll_max_cp'] = ES_df['high'].rolling(20).max()
         ES_df['roll_min_cp'] = ES_df['low'].rolling(20).min()
         ES_df['roll_max_vol'] = ES_df['volume'].rolling(25).max()
-        ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
-        ES_df['EMA_21-EMA_9'] = ES_df['EMA_21'] - ES_df['EMA_9']
-        ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
-        ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
+        # ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
+        # ES_df['EMA_21-EMA_9'] = ES_df['EMA_21'] - ES_df['EMA_9']
+        # ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
+        # ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace=True)
-        return ES_df.iloc[-400, :]
+        return ES_df.iloc[-400:, :]
 
-
+# self = Trade
 class Trade:
     """ This class will trade the data from get_data class in interactive brokers. It includes strategy,
     buying/selling criteria, and controls all connections to interactive brokers orders.
@@ -114,33 +114,29 @@ class Trade:
         self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
                                        barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
                                        timeout=10)  # start data collection for ES-Mini
-        self.data_raw = res.ES(ES)  # get data from get data class
-        self.call_contract = Contract
-        self.put_contract = Contract
-        self.options_price = np.array(
-            [self.call_contract_price, self.put_contract_price])  # set an array for options prices
+        self.data_raw = res.ES(self.ES)  # get data from get data class
+        self.option_position()  # check holding positions and initiate contracts for calls and puts
+        ib.sleep(2)
         self.call_option_volume = np.ones(20)  # start call options volume array to get the max volume in the last 20
         self.put_option_volume = np.ones(
             20)  # start put options volume array to get the max volume in the last 20 ticks
-        self.stock_owned = np.zeros(2)  # define array for holding positions
         self.block_buying = 0  # Buying flag
         self.submitted = 0  # order submission flag
-        self.call_cost = -1  # define initial call cost to -1
-        self.put_cost = -1  # define initial put cost to -1
         self.portfolio = ib.portfolio()
-        self.call_option_price = Ticker
-        self.put_option_price = Ticker
-        self.option_position()  # check holding positions and initiate contracts for calls and puts
+
         self.put_contract_price = 0.25 * round(
             ((self.put_option_price.ask + self.put_option_price.bid) / 2) / 0.25)  # calculate average put price
         self.call_contract_price = 0.25 * round(
             ((self.call_option_price.ask + self.call_option_price.bid) / 2) / 0.25)  # calculate average call price
-        self.portfolio_value = float(self.account[29].value)  # set variables values
-        self.cash_in_hand = float(self.account[22].value)  # set variables values
+        self.options_price = np.array(
+            [self.call_contract_price, self.put_contract_price])  # set an array for options prices
+
         self.max_call_price = self.call_option_price.bid  # define max call price (use to compare to current price)
         self.max_put_price = self.put_option_price.bid  # define max put price (use to compare to current price)
 
         self.account = ib.accountSummary()  # get initial account value
+        self.portfolio_value = float(self.account[29].value)  # set variables values
+        self.cash_in_hand = float(self.account[22].value)  # set variables values
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
         ib.reqGlobalCancel()  # Making sure all orders for buying selling are canceled before starting trading
 
@@ -158,8 +154,7 @@ class Trade:
         self.data_raw = res.ES(ES)
 
         df = self.data_raw[
-            ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol', 'Resistance',
-             'Support']].tail()  # filter data
+            ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol']].tail()  # filter data
         if self.stock_owned.any() > 0 and not np.isnan(self.max_call_price) and not np.isnan(
                 self.max_put_price):
             self.max_call_price = self.call_option_price.bid if self.call_option_price.bid > self.max_call_price else \
@@ -179,7 +174,7 @@ class Trade:
             print((self.put_option_price.bid - self.put_cost))
 
         buy_index, sell_index, take_profit = self.strategy(df, open_orders)  # set initial buy index to None
-
+        sell_index = [1]
         if sell_index:  # start selling to stop loss
 
             for i in sell_index:
@@ -251,7 +246,7 @@ class Trade:
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
         i = -1  # use to get the last data in dataframe
-
+        
         stop_loss = 1.75 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
         ATR_factor = 1.25 * round((df["ATR"].iloc[i]) / 0.25)
 
@@ -441,16 +436,15 @@ class Trade:
             else:
                 self.call_cost = -1
                 self.put_cost = -1
-        if not self.call_contract == res.get_contract('C', 2000) or not self.call_contract == call_position:
-            self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
-            ib.qualifyContracts(self.call_contract)
-            self.call_option_price = ib.reqMktData(self.call_contract, '', False,
-                                                   False)  # start data collection for calls
-        elif not self.put_contract == res.get_contract('P', 2000) or not self.put_contract == put_position:
-            self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
-            ib.qualifyContracts(self.put_contract)
-            self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
-
+        # if not self.call_contract == res.get_contract('C', 2000) or not self.call_contract == call_position:
+        self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
+        ib.qualifyContracts(self.call_contract)
+        self.call_option_price = ib.reqMktData(self.call_contract, '', False,
+                                               False)  # start data collection for calls
+        # elif not self.put_contract == res.get_contract('P', 2000) or not self.put_contract == put_position:
+        self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
+        ib.qualifyContracts(self.put_contract)
+        self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
         return self.call_contract, self.put_contract
 
     @staticmethod
@@ -496,13 +490,13 @@ def main():
 
 if __name__ == '__main__':
     ib = IB()
-    try:
-        res = get_data()
-        trading = Trade()
-        main()
-    except Exception as e:
-        print(e)
-        ib.disconnect()
-    except KeyboardInterrupt:
-        print('User stopped running')
-        ib.disconnect()
+    # try:
+    res = get_data()
+    trading = Trade()
+    main()
+    # except Exception as e:
+    #     print(e)
+    #     ib.disconnect()
+    # except KeyboardInterrupt:
+    #     print('User stopped running')
+    #     ib.disconnect()
