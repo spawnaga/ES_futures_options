@@ -116,7 +116,7 @@ class Trade:
                                        timeout=10)  # start data collection for ES-Mini
         self.data_raw = res.ES(self.ES)  # get data from get data class
         self.option_position()  # check holding positions and initiate contracts for calls and puts
-        ib.sleep(2)
+        ib.sleep(1)
         self.call_option_volume = np.ones(20)  # start call options volume array to get the max volume in the last 20
         self.put_option_volume = np.ones(
             20)  # start put options volume array to get the max volume in the last 20 ticks
@@ -414,9 +414,12 @@ class Trade:
         self.submitted = 0
         print(trade.orderStatus.status)
         self.block_buying = 0
+        self.option_position()
 
     def option_position(self, event=None):
         # gets options position or set contracts for future positions
+
+
         self.stock_owned = np.zeros(2)
         position = ib.portfolio()
         self.portfolio = position
@@ -439,12 +442,20 @@ class Trade:
         # if not self.call_contract == res.get_contract('C', 2000) or not self.call_contract == call_position:
         self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
         ib.qualifyContracts(self.call_contract)
-        self.call_option_price = ib.reqMktData(self.call_contract, '', False,
-                                               False)  # start data collection for calls
         # elif not self.put_contract == res.get_contract('P', 2000) or not self.put_contract == put_position:
         self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
         ib.qualifyContracts(self.put_contract)
-        self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
+        try:
+            self.call_option_price = ib.reqMktData(self.call_contract, '', False,
+                                                   False)  # start data collection for calls
+            self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
+        except Exception as e:
+            print(e)
+            ib.cancelMktData(self.call_option_price)
+            ib.cancelMktData(self.put_option_price)
+            self.call_option_price = ib.reqMktData(self.call_contract, '', False,
+                                                   False)  # start data collection for calls
+            self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
         return self.call_contract, self.put_contract
 
     @staticmethod
