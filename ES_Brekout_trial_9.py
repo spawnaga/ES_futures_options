@@ -107,6 +107,7 @@ class Trade:
     """
 
     def __init__(self):
+        self.skip = False
         self.connect()
         ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX', currency='USD')  # define
         # ES-Mini futures contract
@@ -114,7 +115,8 @@ class Trade:
         self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
                                        barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
                                        timeout=10)  # start data collection for ES-Mini
-        self.data_raw = res.ES(self.ES)  # get data from get data class
+        self.data_raw = res.ES(self.ES)
+        self.stock_owned = np.zeros(2) # get data from get data class
         self.option_position()  # check holding positions and initiate contracts for calls and puts
         ib.sleep(1)
         self.call_option_volume = np.ones(20)  # start call options volume array to get the max volume in the last 20
@@ -140,9 +142,13 @@ class Trade:
         self.unrealizedPNL = float(self.account[32].value)
         self.realizedPNL = float(self.account[33].value)
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
+
         ib.reqGlobalCancel()  # Making sure all orders for buying selling are canceled before starting trading
 
+
     def trade(self, ES, hasNewBar=None):
+        if self.skip:
+            return
         buy_index = []  # set initial buy index to None
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
@@ -182,7 +188,7 @@ class Trade:
                 # self.stock_owned[i] = 0
 
                 if len(self.portfolio) > 0 and len(open_orders) == 0:
-                    contract = self.option_position()[0] if i == 0 else self.option_position()[1]
+                    contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = ib.reqMktData(contract, '', False, False, None)
 
@@ -197,7 +203,7 @@ class Trade:
                 print(len(self.portfolio))
 
                 if len(self.portfolio) > 0 and len(open_orders) == 0:
-                    contract = self.option_position()[0] if i == 0 else self.option_position()[1]
+                    contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = ib.reqMktData(contract, '', False, False, None)
 
@@ -308,15 +314,16 @@ class Trade:
 
         elif (self.stock_owned[0] > 0) and ((self.max_call_price - self.call_contract_price >= stop_loss / 3) or
                                             (2 < self.call_option_volume[-1] < np.max(self.call_option_volume) / 4) or
-                                            (self.max_call_price / self.call_cost) > 1.10) and len(self.portfolio) > 0 \
+                                            (self.max_call_price / self.call_cost) > 1.20 and self.max_call_price - 0.25 > self.call_contract_price) and len(self.portfolio) > 0 \
                 and len(open_orders) == 0 and ((self.call_option_price.bid - 0.25) >= (
+
                 0.25 + self.call_cost)) and self.submitted == 0:  # conditions to sell calls to take profits
             tickers_signal = "take calls profit"
             take_profit.append(0)
 
         elif (self.stock_owned[1] > 0) and ((self.max_put_price - self.put_contract_price <= stop_loss / 3) or
                                             (2 < self.put_option_volume[-1] < np.max(self.put_option_volume) / 4) or
-                                            (self.max_put_price / self.put_cost) > 1.20) and len(self.portfolio) > 0 \
+                                            (self.max_put_price / self.put_cost) > 1.24 and self.max_put_price - 0.25 > self.put_contract_price ) and len(self.portfolio) > 0 \
                 and len(open_orders) == 0 and (
                 (self.put_option_price.bid - 0.25) >= (0.25 + self.put_cost)) and self.submitted == 0:
             # conditions to sell puts to take profits
@@ -341,6 +348,8 @@ class Trade:
         if errorCode in [2104, 2108, 2158, 10182, 1102, 2106]:
             print('attempt to restart data check')
             self.trade(self.ES)
+        else:
+            self.skip = True
 
     def flatten_position(self, contract, price):  # flat position to stop loss
 
@@ -392,8 +401,8 @@ class Trade:
 
             print(f'price = {price.bid - 0.25}')
             print(f'Take profit Position: {action} {totalQuantity} {contract.localSymbol}')
-            print(price)
-            order = LimitOrder(action, totalQuantity, price.bid - 0.25)
+
+            order = LimitOrder(action, totalQuantity, price.bid)
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(15)
             if not trade.orderStatus.remaining == 0:
@@ -415,10 +424,11 @@ class Trade:
         self.option_position()
 
     def option_position(self, event=None):
+        if self.skip:
+            return
         # gets options position or set contracts for future positions
-
-
-        self.stock_owned = np.zeros(2)
+        print('in option position')
+        # self.stock_owned = np.zeros(2)
         position = ib.portfolio()
         self.portfolio = position
         call_position = None
@@ -437,6 +447,7 @@ class Trade:
             else:
                 self.call_cost = -1
                 self.put_cost = -1
+                self.stock_owned =[0,0]
         # if not self.call_contract == res.get_contract('C', 2000) or not self.call_contract == call_position:
         self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
         ib.qualifyContracts(self.call_contract)
