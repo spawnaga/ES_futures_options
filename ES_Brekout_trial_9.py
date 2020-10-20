@@ -147,7 +147,7 @@ class Trade:
 
 
     def trade(self, ES, hasNewBar=None):
-
+        self.option_position()
         buy_index = []  # set initial buy index to None
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
