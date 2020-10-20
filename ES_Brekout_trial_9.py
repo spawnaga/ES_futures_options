@@ -147,8 +147,7 @@ class Trade:
 
 
     def trade(self, ES, hasNewBar=None):
-        if self.skip:
-            return
+        self.option_position()
         buy_index = []  # set initial buy index to None
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
@@ -187,7 +186,8 @@ class Trade:
             for i in sell_index:
                 # self.stock_owned[i] = 0
 
-                if len(self.portfolio) > 0 and len(open_orders) == 0:
+                if len(self.portfolio) > 0 and len(open_orders) == 0 and self.submitted == 0:
+                    self.submitted = 1
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = ib.reqMktData(contract, '', False, False, None)
@@ -195,6 +195,7 @@ class Trade:
                     self.flatten_position(contract, price)
 
                     self.option_position()
+                    self.submitted = 0
 
         if take_profit:  # start selling to take profit
             for i in take_profit:
@@ -202,7 +203,8 @@ class Trade:
                 print(self.stock_owned[i])
                 print(len(self.portfolio))
 
-                if len(self.portfolio) > 0 and len(open_orders) == 0:
+                if len(self.portfolio) > 0 and len(open_orders) == 0 and self.submitted == 0:
+                    self.submitted = 1
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = ib.reqMktData(contract, '', False, False, None)
@@ -212,9 +214,6 @@ class Trade:
                     self.submitted = 0
                     self.option_position()
 
-                    self.call_cost = -1
-                    self.put_cost = -1
-
         if buy_index:  # start buying to start trade
 
             for i in buy_index:
@@ -223,12 +222,14 @@ class Trade:
 
                 if self.cash_in_hand > (self.options_price[i] * 50) and self.cash_in_hand > self.portfolio_value \
                         and (self.stock_owned[0] < 1 or self.stock_owned[1] < 1) and len(self.portfolio) == 0 and len(
-                    open_orders) == 0 and self.block_buying == 0:
+                    open_orders) == 0 and self.submitted == 0:
+                    self.submitted = 1
                     price = self.call_option_price if i == 0 else self.put_option_price
                     quantity = int((self.cash_in_hand / (self.options_price[i] * 50)))
                     self.block_buying = 1
                     self.open_position(contract=contract, quantity=quantity, price=price)
                     self.option_position()
+                    self.submitted = 0
 
     def strategy(self, df, open_orders):
         """
@@ -266,29 +267,30 @@ class Trade:
                 df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
                 and (not (is_time_between(time(13, 50), time(14, 00)) or
                           (is_time_between(time(15, 00), time(15, 15))))) and \
-                buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
+                buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0 and self.submitted ==0:
             # conditions to buy calls
             tickers_signal = "Buy call"
             buy_index.append(0)
+
 
         elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
                 and (not (is_time_between(time(13, 50), time(14, 00)) or
                           (is_time_between(time(15, 00), time(15, 15))))) and \
-                buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0:
+                buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.block_buying == 0 and self.submitted == 0:
             # conditions to sell calls
             tickers_signal = "Buy put"
             buy_index.append(1)
 
         elif df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and df["volume"].iloc[i] > df["roll_max_vol"].iloc[
-            i - 1] and self.stock_owned[0] == 1 and self.stock_owned[1] == 0 and self.block_buying == 0:
+            i - 1] and self.stock_owned[0] == 1 and self.stock_owned[1] == 0 and self.block_buying == 0 and self.submitted == 0:
             # conditions to sell calls and buy puts if trend reversed
             tickers_signal = "sell call and buy puts"
             sell_index.append(0)
             buy_index.append(1)
 
         elif df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and df["volume"].iloc[i] > df["roll_max_vol"].iloc[
-            i - 1] and self.stock_owned[1] == 1 and self.stock_owned[0] == 0 and self.block_buying == 0:
+            i - 1] and self.stock_owned[1] == 1 and self.stock_owned[0] == 0 and self.block_buying == 0 and self.submitted == 0:
             # conditions to buy calls and sell puts if trend reversed
             tickers_signal = "sell put and buy calls"
             sell_index.append(1)
@@ -298,7 +300,7 @@ class Trade:
         elif (self.stock_owned[0] > 0) and (
                 (df["close"].iloc[i] < df["close"].iloc[i - 1] - (ATR_factor * df["ATR"].iloc[i - 1])) or
                 (self.call_cost - self.call_contract_price >= stop_loss) or (
-                        is_time_between(time(13, 50), time(14, 00)))):  # conditions to sell calls to stop loss
+                        is_time_between(time(13, 50), time(14, 00)))) and self.submitted == 0:  # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
 
@@ -306,7 +308,7 @@ class Trade:
         elif (self.stock_owned[1] > 0) and (((df["close"].iloc[i] > df["close"].iloc[i - 1] + (
                                                             ATR_factor * df["ATR"].iloc[i - 1])) or
                                                     (self.put_cost - self.put_contract_price >= stop_loss)) or (
-                                                    is_time_between(time(13, 50), time(14, 00)))):
+                                                    is_time_between(time(13, 50), time(14, 00)))) and self.submitted == 0:
             # conditions to sell puts to stop loss
             tickers_signal = "sell put"
             sell_index.append(1)
@@ -348,9 +350,6 @@ class Trade:
         if errorCode in [2104, 2108, 2158, 10182, 1102, 2106]:
             print('attempt to restart data check')
             self.trade(self.ES)
-            self.skip = False
-        else:
-            self.skip = True
 
     def flatten_position(self, contract, price):  # flat position to stop loss
 
@@ -381,6 +380,8 @@ class Trade:
             else:
                 self.submitted = 0
             print(trade.orderStatus.status)
+            self.option_position()
+        return
 
     def take_profit(self, contract, price):  # start taking profit
 
@@ -410,6 +411,8 @@ class Trade:
                 ib.cancelOrder(order)
             self.submitted = 0
             print(trade.orderStatus.status)
+            self.option_position()
+        return
 
     def open_position(self, contract, quantity, price):  # start position
         order = LimitOrder('BUY', quantity,
@@ -423,50 +426,29 @@ class Trade:
         print(trade.orderStatus.status)
         self.block_buying = 0
         self.option_position()
+        return
 
     def option_position(self, event=None):
-        if self.skip:
-            return
-        # gets options position or set contracts for future positions
-        if not isinstance(event, PortfolioItem):
-            position = ib.portfolio()
-            self.portfolio = position
-            call_position = None
-            put_position = None
-            for each in position:
-                if each.contract.right == 'C':
-                    call_position = each.contract
-                    ib.qualifyContracts(call_position)
-                    self.stock_owned[0] = each.position
-                    self.call_cost = 0.25 * round(each.averageCost / 50 / 0.25)
-                elif each.contract.right == 'P':
-                    put_position = each.contract
-                    ib.qualifyContracts(put_position)
-                    self.stock_owned[1] = each.position
-                    self.put_cost = 0.25 * round(each.averageCost / 50 / 0.25)
-                else:
-                    self.call_cost = -1
-                    self.put_cost = -1
-                    self.stock_owned = [0, 0]
-        else:
-            # self.stock_owned = np.zeros(2)
-            call_position = None
-            put_position = None
-
-            if event.contract.right == 'C':
-                call_position = event.contract
+        position = ib.portfolio()
+        self.portfolio = position
+        call_position = None
+        put_position = None
+        for each in position:
+            if each.contract.right == 'C':
+                call_position = each.contract
                 ib.qualifyContracts(call_position)
-                self.stock_owned[0] = event.position
-                self.call_cost = 0.25 * round(event.averageCost / 50 / 0.25)
-            elif event.contract.right == 'P':
-                put_position = event.contract
+                self.stock_owned[0] = each.position
+                self.call_cost = 0.25 * round(each.averageCost / 50 / 0.25)
+            elif each.contract.right == 'P':
+                put_position = each.contract
                 ib.qualifyContracts(put_position)
-                self.stock_owned[1] = event.position
-                self.put_cost = 0.25 * round(event.averageCost / 50 / 0.25)
+                self.stock_owned[1] = each.position
+                self.put_cost = 0.25 * round(each.averageCost / 50 / 0.25)
             else:
                 self.call_cost = -1
                 self.put_cost = -1
-                self.stock_owned = np.zeros(2)
+                self.stock_owned = [0, 0]
+
 
         self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
         ib.qualifyContracts(self.call_contract)
@@ -477,7 +459,7 @@ class Trade:
         self.call_option_price = ib.reqMktData(self.call_contract, '', False,
                                                False)  # start data collection for calls
         self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
-
+        return
 
     @staticmethod
     def connect():
@@ -517,7 +499,7 @@ def is_time_between(begin_time, end_time, check_time=None):
 
 
 def main():
-    ib.updatePortfolioEvent += trading.option_position
+    # ib.updatePortfolioEvent += trading.option_position
     ib.accountSummaryEvent += trading.account_update
     ib.errorEvent += trading.error
     trading.ES.updateEvent += trading.trade
