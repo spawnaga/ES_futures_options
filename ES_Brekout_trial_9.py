@@ -193,7 +193,6 @@ class Trade:
                     price = ib.reqMktData(contract, '', False, False, None)
 
                     self.flatten_position(contract, price)
-                    self.submitted = 0
 
 
         if take_profit:  # start selling to take profit
@@ -209,7 +208,6 @@ class Trade:
                     price = ib.reqMktData(contract, '', False, False, None)
 
                     self.take_profit(contract, price)
-                    self.submitted = 0
 
 
         if buy_index:  # start buying to start trade
@@ -226,7 +224,7 @@ class Trade:
                     quantity = int((self.cash_in_hand / (self.options_price[i] * 50)))
                     self.block_buying = 1
                     self.open_position(contract=contract, quantity=quantity, price=price)
-                    self.submitted = 0
+
 
     def strategy(self, df, open_orders):
         """
@@ -334,7 +332,7 @@ class Trade:
             sell_index = []
             buy_index = []
             take_profit = []
-            self.submitted = 0
+
 
         print(f'stocks owning = {self.stock_owned}')
         print(tickers_signal)
@@ -424,10 +422,11 @@ class Trade:
         ib.sleep(15)
         if not trade.orderStatus.status == "Filled":
             ib.cancelOrder(order)
+        else:
             self.option_position()
-        self.submitted = 0
-        print(trade.orderStatus.status)
-        self.block_buying = 0
+            self.submitted = 0
+            print(trade.orderStatus.status)
+            self.block_buying = 0
 
         return
 
@@ -498,7 +497,7 @@ def is_time_between(begin_time, end_time, check_time=None):
 
 
 def main():
-    # ib.updatePortfolioEvent += trading.option_position
+    # ib.positionEvent += trading.option_position
     ib.accountSummaryEvent += trading.account_update
     ib.errorEvent += trading.error
     trading.ES.updateEvent += trading.trade
