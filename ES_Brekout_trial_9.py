@@ -147,7 +147,7 @@ class Trade:
 
 
     def trade(self, ES, hasNewBar=None):
-        self.option_position()
+
         buy_index = []  # set initial buy index to None
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
@@ -380,7 +380,7 @@ class Trade:
             else:
                 self.submitted = 0
             print(trade.orderStatus.status)
-            self.option_position()
+
         return
 
     def take_profit(self, contract, price):  # start taking profit
@@ -411,7 +411,7 @@ class Trade:
                 ib.cancelOrder(order)
             self.submitted = 0
             print(trade.orderStatus.status)
-            self.option_position()
+
         return
 
     def open_position(self, contract, quantity, price):  # start position
@@ -425,7 +425,7 @@ class Trade:
         self.submitted = 0
         print(trade.orderStatus.status)
         self.block_buying = 0
-        self.option_position()
+
         return
 
     def option_position(self, event=None):
