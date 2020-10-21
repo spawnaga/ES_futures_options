@@ -6,7 +6,7 @@ import talib as ta
 from talib import MA_Type
 from ib_insync import *
 import nest_asyncio
-
+import os
 nest_asyncio.apply()  # enable nest asyncio
 sys.setrecursionlimit(10 ** 9)  # set recursion limit to 1000000000
 pd.options.mode.chained_assignment = None  # remove a warning
@@ -141,13 +141,15 @@ class Trade:
         self.cash_in_hand = float(self.account[22].value)  # set variables values
         self.unrealizedPNL = float(self.account[32].value)
         self.realizedPNL = float(self.account[33].value)
+        self.reqId = []
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
 
         ib.reqGlobalCancel()  # Making sure all orders for buying selling are canceled before starting trading
 
 
     def trade(self, ES, hasNewBar=None):
-        self.option_position()
+        # self.option_position()
+        self.ES = ES
         buy_index = []  # set initial buy index to None
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
@@ -157,7 +159,7 @@ class Trade:
                                                     self.put_option_price.bidSize)  # update put options volume
         open_orders = ib.reqAllOpenOrders()  # get current open orders
 
-        self.data_raw = res.ES(ES)
+        self.data_raw = res.ES(self.ES)
 
         df = self.data_raw[
             ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp', 'roll_max_vol']].tail()  # filter data
@@ -342,9 +344,31 @@ class Trade:
 
     def error(self, reqId=None, errorCode=None, errorString=None, contract=None):  # error handler
         print(errorCode, errorString)
-        if errorCode in [2104, 2108, 2158, 10182, 1102, 2106, 2107]:
+
+        if errorCode in [2104, 2108, 2158, 10182, 1102, 2106, 2107] and len(self.reqId) < 1:
+            self.reqId.append(reqId)
+            ib.cancelHistoricalData(self.ES)
+            del self.ES
+            ib.sleep(50)
+            ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
+                        currency='USD')  # define
+            # ES-Mini futures contract
+            ib.qualifyContracts(ES)
+            self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
+                                           barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
+                                           timeout=10)  # start data collection for ES-Mini
             print('attempt to restart data check')
-            self.trade(self.ES)
+            if len(self.ES)==0:
+                print(self.ES)
+                self.error()
+                self.reqId = []
+            else:
+                ib.sleep(1)
+                self.reqId = []
+                self.ES.updateEvent += self.trade
+                self.trade(self.ES)
+
+
 
     def flatten_position(self, contract, price):  # flat position to stop loss
 
