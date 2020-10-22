@@ -135,7 +135,7 @@ class Trade:
 
         self.max_call_price = self.call_option_price.bid  # define max call price (use to compare to current price)
         self.max_put_price = self.put_option_price.bid  # define max put price (use to compare to current price)
-
+        self.prev_cash =0
         self.account = ib.accountSummary()  # get initial account value
         self.portfolio_value = float(self.account[29].value)  # set variables values
         self.cash_in_hand = float(self.account[22].value)  # set variables values
@@ -249,8 +249,8 @@ class Trade:
         take_profit = []  # set initial take profit index to None
         i = -1  # use to get the last data in dataframe
 
-        stop_loss = 1.75 + 0.50 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
-        ATR_factor = 2 * round((df["ATR"].iloc[i]) / 0.25)
+        stop_loss = 1.75 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
+        ATR_factor =  0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
 
         print(
             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
@@ -373,7 +373,7 @@ class Trade:
         portfolio = self.portfolio
         for each in portfolio:  # check current position and select contract
             print(price.bid)
-            if each.contract.right != contract.right or price.bid < 0.25:
+            if is_time_between(time(15, 00), time(15, 15)) or each.contract.right != contract.right or price.bid < 0.25:
                 return
             ib.qualifyContracts(each.contract)
             if each.position > 0:  # Number of active Long portfolio
@@ -501,6 +501,7 @@ class Trade:
 
         self.update += 1
         self.cash_in_hand = float(value.value) if value.tag == 'TotalCashValue' else self.cash_in_hand
+
         self.portfolio_value = float(value.value) if value.tag == 'GrossPositionValue' else self.portfolio_value
         self.unrealizedPNL = float(value.value) if value.tag == 'UnrealizedPnL' else self.unrealizedPNL
         self.realizedPNL = float(value.value) if value.tag == 'RealizedPnL' else self.realizedPNL
@@ -508,8 +509,11 @@ class Trade:
         #     return
         # self.account = ib.accountSummary()
 
-        if self.update > 10:
-            self.upadate = 0
+        if self.prev_cash != self.cash_in_hand:
+            self.option_position()
+            self.prev_cash = self.cash_in_hand
+            if self.submitted == 1:
+                self.submitted = 0
 
 
 def is_time_between(begin_time, end_time, check_time=None):
