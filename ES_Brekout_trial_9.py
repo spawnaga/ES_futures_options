@@ -315,16 +315,16 @@ class Trade:
             tickers_signal = "take puts profit"
             take_profit.append(1)
 
-        elif (self.stock_owned[0] > 0) and ((df["close"].iloc[i] < df["close"].iloc[i - 1] - (
-                ATR_factor * df["ATR"].iloc[i - 1])) or (self.call_cost - self.call_contract_price) >= stop_loss) \
+        elif (self.stock_owned[0] > 0) and ((df["close"].iloc[i-1] > 0.0 and df["close"].iloc[i] > 0.0 and (df["close"].iloc[i] < df["close"].iloc[i - 1] - (
+                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.call_contract_price)) and (self.call_cost - self.call_contract_price) >= stop_loss)) \
                 and self.submitted == 0 and len(open_orders) and len(self.portfolio) > 0:
             # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
 
 
-        elif (self.stock_owned[1] > 0) and ((df["close"].iloc[i] > df["close"].iloc[i - 1] + (
-                ATR_factor * df["ATR"].iloc[i - 1])) or (self.put_cost - self.put_contract_price) >= stop_loss) \
+        elif (self.stock_owned[1] > 0) and ((df["close"].iloc[i-1] > 0.0 and df["close"].iloc[i] > 0.0 and (df["close"].iloc[i] > df["close"].iloc[i - 1] + (
+                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.put_contract_price)) and (self.put_cost - self.put_contract_price) >= stop_loss)) \
                 and self.submitted == 0 and len(open_orders) and len(self.portfolio) > 0:
             # conditions to sell puts to stop loss
             tickers_signal = "sell put"
@@ -338,6 +338,9 @@ class Trade:
 
         print(f'stocks owning = {self.stock_owned}')
         print(tickers_signal)
+        print(f'df["close"].iloc[i] = {df["close"].iloc[i]} and, df["close"].iloc[i - 1] - '
+              f'(ATR_factor * df["ATR"].iloc[i - 1]) '
+              f'=, {df["close"].iloc[i - 1]-(ATR_factor * df["ATR"].iloc[i - 1])}')
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
         return buy_index, sell_index, take_profit
@@ -367,6 +370,7 @@ class Trade:
                 self.reqId = []
                 self.ES.updateEvent += self.trade
                 self.trade(self.ES)
+
 
     def flatten_position(self, contract, price):  # flat position to stop loss
         self.submitted = 1
@@ -497,7 +501,7 @@ class Trade:
     @staticmethod
     def connect():
         ib.disconnect()
-        ib.connect('104.237.11.181', 7497, clientId=np.random.randint(10, 1000))
+        ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
         ib.client.MaxRequests = 55
         print('reconnected')
 
