@@ -338,9 +338,6 @@ class Trade:
 
         print(f'stocks owning = {self.stock_owned}')
         print(tickers_signal)
-        print(f'df["close"].iloc[i] = {df["close"].iloc[i]} and, df["close"].iloc[i - 1] - '
-              f'(ATR_factor * df["ATR"].iloc[i - 1]) '
-              f'=, {df["close"].iloc[i - 1]-(ATR_factor * df["ATR"].iloc[i - 1])}')
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
         return buy_index, sell_index, take_profit
