@@ -367,6 +367,9 @@ class Trade:
                 self.reqId = []
                 self.ES.updateEvent += self.trade
                 self.trade(self.ES)
+        elif errorCode == 110:
+            ib.reqGlobalCancel()
+            self.option_position()
 
 
     def flatten_position(self, contract, price):  # flat position to stop loss
@@ -498,7 +501,7 @@ class Trade:
     @staticmethod
     def connect():
         ib.disconnect()
-        ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
+        ib.connect('104.237.11.181', 7497, clientId=np.random.randint(10, 1000))
         ib.client.MaxRequests = 55
         print('reconnected')
 
