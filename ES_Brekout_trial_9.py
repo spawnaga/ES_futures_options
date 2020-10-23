@@ -525,6 +525,8 @@ class Trade:
             self.prev_cash = self.cash_in_hand
             if self.submitted == 1:
                 self.submitted = 0
+        if not self.unrealizedPNL == 0 and not self.stock_owned.any() > 0:
+            self.options_price()
 
 
 def is_time_between(begin_time, end_time, check_time=None):
