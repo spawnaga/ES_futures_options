@@ -123,7 +123,7 @@ class get_data:
         ES_df['roll_min_cp']=ES_df['low'].rolling(20).min()
         ES_df['roll_max_vol']=ES_df['volume'].rolling(20).max()
         ES_df['vol/max_vol'] = ES_df['volume']/ES_df['roll_max_vol']
-        ES_df['EMA_26-EMA_9']=ES_df['EMA_26']-ES_df['EMA_9']
+        ES_df['EMA_9-EMA_26']=ES_df['EMA_9']-ES_df['EMA_26']
         ES_df['EMA_200-EMA_50']=ES_df['EMA_200']-ES_df['EMA_50']
         ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace = True)
@@ -525,7 +525,7 @@ if __name__ == '__main__':
         except:
             data_raw=pd.read_csv('./new_data.csv',index_col='date')
 
-        data = data_raw[['hours + minutes', 'EMA_26-EMA_9', 'EMA_200-EMA_50', 'RSI', 'ATR', 'vol/max_vol', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
+        data = data_raw[['hours + minutes', 'EMA_9-EMA_26', 'EMA_200-EMA_50', 'RSI', 'ATR', 'vol/max_vol', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
         n_stocks = 2
         train_data = data
         batch_size = 1000
