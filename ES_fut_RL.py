@@ -112,10 +112,10 @@ class get_data:
         ES_df['macd'],ES_df['macdsignal'],ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26, signalperiod=9)
         ES_df['macd - macdsignal'] = ES_df['macd'] - ES_df['macdsignal']
         ES_df['MA_9']=ta.MA(ES_df['close'], timeperiod=9)
-        ES_df['MA_21']=ta.MA(ES_df['close'], timeperiod=21)
+        ES_df['MA_26']=ta.MA(ES_df['close'], timeperiod=26)
         ES_df['MA_200']=ta.MA(ES_df['close'], timeperiod=200)
         ES_df['EMA_9']=ta.EMA(ES_df['close'], timeperiod=9)
-        ES_df['EMA_21']=ta.EMA(ES_df['close'], timeperiod=21)
+        ES_df['EMA_26']=ta.EMA(ES_df['close'], timeperiod=26)
         ES_df['EMA_50']=ta.EMA(ES_df['close'], timeperiod=50)
         ES_df['EMA_200']=ta.EMA(ES_df['close'], timeperiod=200)
         ES_df['ATR']=ta.ATR(ES_df['high'],ES_df['low'], ES_df['close'])
@@ -123,7 +123,7 @@ class get_data:
         ES_df['roll_min_cp']=ES_df['low'].rolling(20).min()
         ES_df['roll_max_vol']=ES_df['volume'].rolling(20).max()
         ES_df['vol/max_vol'] = ES_df['volume']/ES_df['roll_max_vol']
-        ES_df['EMA_21-EMA_9']=ES_df['EMA_21']-ES_df['EMA_9']
+        ES_df['EMA_26-EMA_9']=ES_df['EMA_26']-ES_df['EMA_9']
         ES_df['EMA_200-EMA_50']=ES_df['EMA_200']-ES_df['EMA_50']
         ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace = True)
@@ -359,7 +359,7 @@ class MultiStockEnv:
         # get the new value after taking the action
         cur_val = self._get_val()
     
-        # reward is the increase in porfolio value
+        # reward is the increase in porfoliosignificantly different from zero value
         reward = cur_val - prev_val
     
         # done if we have run out of data
@@ -512,7 +512,7 @@ if __name__ == '__main__':
             import talib as ta
             from talib import MA_Type
             ib = IB()
-            ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
+            ib.connect('104.237.11.181', 7497, clientId=np.random.randint(10, 1000))
             ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                         currency='USD')
             ib.qualifyContracts(ES)
@@ -525,7 +525,7 @@ if __name__ == '__main__':
         except:
             data_raw=pd.read_csv('./new_data.csv',index_col='date')
 
-        data = data_raw[['hours + minutes', 'EMA_21-EMA_9', 'EMA_200-EMA_50', 'RSI', 'ATR', 'vol/max_vol', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
+        data = data_raw[['hours + minutes', 'EMA_26-EMA_9', 'EMA_200-EMA_50', 'RSI', 'ATR', 'vol/max_vol', 'ES_C_close','ES_P_close']] #choose parameters to drop if not needed
         n_stocks = 2
         train_data = data
         batch_size = 1000

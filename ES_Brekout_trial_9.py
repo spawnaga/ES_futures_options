@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, time
 import talib as ta
 from talib import MA_Type
 from ib_insync import *
+import schedule
 import nest_asyncio
 
 nest_asyncio.apply()  # enable nest asyncio
@@ -80,13 +81,14 @@ class get_data:
         # ES_df['Day_of_week'] = ES_df.index.dayofweek
         ES_df['RSI'] = ta.RSI(ES_df['close'])
         # ES_df['macd'], ES_df['macdsignal'], ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26,
-        #                                                                 signalperiod=9)
+        #                                                                signalperiod=9)
         # ES_df['macd - macdsignal'] = ES_df['macd'] - ES_df['macdsignal']
         # ES_df['MA_9'] = ta.MA(ES_df['close'], timeperiod=9)
         # ES_df['MA_21'] = ta.MA(ES_df['close'], timeperiod=21)
         # ES_df['MA_200'] = ta.MA(ES_df['close'], timeperiod=200)
-        # ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
-        # ES_df['EMA_21'] = ta.EMA(ES_df['close'], timeperiod=21)
+        ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
+        ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=26)
+        # ES_df['EMA_9_26']=df['EMA_9']/df['EMA_26']
         # ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
         # ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
         ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], timeperiod=20)
@@ -108,6 +110,7 @@ class Trade:
     """
 
     def __init__(self):
+
         self.skip = False
         self.connect()
         ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX', currency='USD')  # define
@@ -163,7 +166,7 @@ class Trade:
 
         df = self.data_raw[
             ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp',
-             'roll_max_vol']].tail()  # filter data
+             'roll_max_vol', 'EMA_9', 'EMA_26']].tail()  # filter data
         if self.stock_owned.any() > 0 and not np.isnan(self.max_call_price) and not np.isnan(
                 self.max_put_price):
             self.max_call_price = self.call_option_price.bid if self.call_option_price.bid > self.max_call_price else \
@@ -249,7 +252,8 @@ class Trade:
 
         stop_loss = 1.75 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
         ATR_factor = 0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
-
+        # print("%%%%",((df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1])) or ((not np.isnan(self.put_option_price.bid)) and abs(
+        #         self.put_cost - self.put_option_price.bid) >= abs(stop_loss))) and self.submitted == 0 and len(open_orders) ==0)
         print(
             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
             f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
@@ -260,6 +264,7 @@ class Trade:
             f'and ATR_factor = {ATR_factor} and self.submitted = {self.submitted} and call volume = '
             f'{self.call_option_volume[-1]} and put volume = {self.put_option_volume[-1]} and max call volume = '
             f'{np.max(self.call_option_volume)} and max put volume = {np.max(self.put_option_volume)}')
+        print((self.stock_owned[1] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.put_option_price.bid)) and abs(self.put_cost - self.put_option_price.bid) >= abs(stop_loss))) and self.submitted == 0 and len(open_orders) == 0)
 
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
@@ -315,17 +320,21 @@ class Trade:
             tickers_signal = "take puts profit"
             take_profit.append(1)
 
-        elif (self.stock_owned[0] > 0) and ((df["close"].iloc[i-1] > 0.0 and df["close"].iloc[i] > 0.0 and (df["close"].iloc[i] < df["close"].iloc[i - 1] - (
-                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.call_contract_price)) and (self.call_cost - self.call_contract_price) >= stop_loss)) \
-                and self.submitted == 0 and len(open_orders) and len(self.portfolio) > 0:
+        elif (self.stock_owned[0] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
+                df["close"].iloc[i] < df["close"].iloc[i - 1] - (
+                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.call_option_price.bid)) and abs(
+                self.call_cost - self.call_option_price.bid) >= abs(stop_loss))) \
+                and self.submitted == 0 and len(open_orders) == 0:
             # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
 
 
-        elif (self.stock_owned[1] > 0) and ((df["close"].iloc[i-1] > 0.0 and df["close"].iloc[i] > 0.0 and (df["close"].iloc[i] > df["close"].iloc[i - 1] + (
-                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.put_contract_price)) and (self.put_cost - self.put_contract_price) >= stop_loss)) \
-                and self.submitted == 0 and len(open_orders) and len(self.portfolio) > 0:
+        elif (self.stock_owned[1] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
+                df["close"].iloc[i] > df["close"].iloc[i - 1] + (
+                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.put_option_price.bid)) and abs(
+                self.put_cost - self.put_option_price.bid) >= abs(stop_loss))) \
+                and self.submitted == 0 and len(open_orders) == 0:
             # conditions to sell puts to stop loss
             tickers_signal = "sell put"
             sell_index.append(1)
@@ -333,11 +342,12 @@ class Trade:
         else:
             tickers_signal = "Hold"
             sell_index = []
-            buy_index = []
+            buy_index =[]
             take_profit = []
 
         print(f'stocks owning = {self.stock_owned}')
         print(tickers_signal)
+        print(f'check stocks owning = {not self.unrealizedPNL == 0 and not self.stock_owned.any() > 0}')
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
 
         return buy_index, sell_index, take_profit
@@ -367,10 +377,9 @@ class Trade:
                 self.reqId = []
                 self.ES.updateEvent += self.trade
                 self.trade(self.ES)
-        elif errorCode == 110:
-            ib.reqGlobalCancel()
-            self.option_position()
 
+        elif errorCode == 201:
+            self.option_position()
 
     def flatten_position(self, contract, price):  # flat position to stop loss
         self.submitted = 1
@@ -501,7 +510,7 @@ class Trade:
     @staticmethod
     def connect():
         ib.disconnect()
-        ib.connect('104.237.11.181', 7497, clientId=np.random.randint(10, 1000))
+        ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
         ib.client.MaxRequests = 55
         print('reconnected')
 
@@ -529,7 +538,7 @@ class Trade:
             if self.submitted == 1:
                 self.submitted = 0
         if not self.unrealizedPNL == 0 and not self.stock_owned.any() > 0:
-            self.options_price()
+            self.option_position()
 
 
 def is_time_between(begin_time, end_time, check_time=None):
@@ -542,6 +551,7 @@ def is_time_between(begin_time, end_time, check_time=None):
 
 
 def main():
+    trading = Trade()
     ib.positionEvent += trading.option_position
     ib.accountSummaryEvent += trading.account_update
     ib.errorEvent += trading.error
@@ -550,14 +560,27 @@ def main():
 
 
 if __name__ == '__main__':
+
+    today = datetime.today().weekday()
     ib = IB()
-    try:
-        res = get_data()
-        trading = Trade()
-        main()
-    except Exception as e:
-        print(e)
-        ib.disconnect()
-    except KeyboardInterrupt:
-        print('User stopped running')
-        ib.disconnect()
+    res = get_data()
+
+    main()
+        # if ((today == 4 and datetime.now().hour > 14) or today == 5 or (today == 6 and
+        #                                                                          datetime.now().hour < 15)):
+        #     print('No market now, wait until Sunday at 15:00')
+        #     schedule.every().monday.at("15:00").do(main)
+        #
+        # elif 14 < datetime.now().hour < 15:
+        #     print('No market now, wait until 15:00')
+        #     schedule.every().day.at("15:00").do(main)
+
+        # while True:
+        #     schedule.run_pending()
+        #     ib.sleep(1)
+    # except Exception as e:
+    #     print(e)
+    #     ib.disconnect()
+    # except KeyboardInterrupt:
+    #     print('User stopped running')
+    #     ib.disconnect()
