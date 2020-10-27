@@ -88,6 +88,7 @@ class get_data:
         # ES_df['MA_200'] = ta.MA(ES_df['close'], timeperiod=200)
         ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
         ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=26)
+        ES_df['derv_1'] = np.gradient(ES_df['EMA_9'])
         # ES_df['EMA_9_26']=df['EMA_9']/df['EMA_26']
         # ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
         # ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
@@ -166,7 +167,7 @@ class Trade:
 
         df = self.data_raw[
             ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp',
-             'roll_max_vol', 'EMA_9', 'EMA_26']].tail()  # filter data
+             'roll_max_vol', 'EMA_9', 'EMA_26', 'derv_1']].tail()  # filter data
         if self.stock_owned.any() > 0 and not np.isnan(self.max_call_price) and not np.isnan(
                 self.max_put_price):
             self.max_call_price = self.call_option_price.bid if self.call_option_price.bid > self.max_call_price else \
@@ -264,7 +265,11 @@ class Trade:
             f'and ATR_factor = {ATR_factor} and self.submitted = {self.submitted} and call volume = '
             f'{self.call_option_volume[-1]} and put volume = {self.put_option_volume[-1]} and max call volume = '
             f'{np.max(self.call_option_volume)} and max put volume = {np.max(self.put_option_volume)}')
-        print((self.stock_owned[1] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.put_option_price.bid)) and abs(self.put_cost - self.put_option_price.bid) >= abs(stop_loss))) and self.submitted == 0 and len(open_orders) == 0)
+        print((self.stock_owned[1] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
+                    df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1]))) or (
+                                                         (not np.isnan(self.put_option_price.bid)) and abs(
+                                                     self.put_cost - self.put_option_price.bid) >= abs(
+                                                     stop_loss))) and self.submitted == 0 and len(open_orders) == 0)
 
         if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
@@ -284,65 +289,82 @@ class Trade:
             tickers_signal = "Buy put"
             buy_index.append(1)
 
-        elif (self.stock_owned[0] > 0) and (df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and
-                                            df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) and \
-                self.stock_owned[1] == 0 and self.block_buying == 0 and self.submitted == 0:
-            # conditions to sell calls and buy puts if trend reversed
-            tickers_signal = "sell call and buy puts"
-            sell_index.append(0)
-            buy_index.append(1)
-
-        elif (self.stock_owned[1] > 0) and (df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and
-                                            df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) \
-                and self.stock_owned[0] == 0 and self.block_buying == 0 and self.submitted == 0:
-            # conditions to buy calls and sell puts if trend reversed
-            tickers_signal = "sell put and buy calls"
-            sell_index.append(1)
-            buy_index.append(0)
-
-
-        elif (self.stock_owned[0] > 0) and (
-                (self.call_option_volume[-1] < self.call_option_volume[-4] and self.call_option_volume[-1] <
-                 self.call_option_volume[-2] < self.call_option_volume[-3]) or
-                (self.max_call_price / self.call_cost) > 1.10) and (
-                self.max_call_price - 0.25 > self.call_contract_price + 0.25) and len(self.portfolio) > 0 \
+        elif (self.stock_owned[0] > 0) and (df["derv_1"].iloc[i] < df["derv_1"].iloc[i - 1] and
+                                            df["derv_1"].iloc[i] < df["derv_1"].iloc[i - 2] and
+                                            df["derv_1"].iloc[i] < df["derv_1"].iloc[i - 3] and
+                                            df["derv_1"].iloc[i] < df["derv_1"].iloc[i - 4]) and len(self.portfolio) > 0 \
                 and len(open_orders) == 0 and self.submitted == 0:  # conditions to sell calls to take profits
             tickers_signal = "take calls profit"
             take_profit.append(0)
 
-        elif (self.stock_owned[1] > 0) and (
-                (self.put_option_volume[-1] < self.put_option_volume[-4] and self.put_option_volume[-1] <
-                 self.put_option_volume[-2] < self.put_option_volume[-3]) or
-                (self.max_put_price / self.put_cost) > 1.14) and (
-                self.max_put_price - 0.25 > self.put_contract_price + 0.25) and len(self.portfolio) > 0 \
-                and len(open_orders) == 0 and self.submitted == 0:
-            # conditions to sell puts to take profits
+        elif (self.stock_owned[1] > 0) and (df["derv_1"].iloc[i] > df["derv_1"].iloc[i - 1] and
+                                            df["derv_1"].iloc[i] > df["derv_1"].iloc[i - 2] and
+                                            df["derv_1"].iloc[i] > df["derv_1"].iloc[i - 3] and
+                                            df["derv_1"].iloc[i] > df["derv_1"].iloc[i - 4]) and len(self.portfolio) > 0 \
+                and len(open_orders) == 0 and self.submitted == 0:  # conditions to sell calls to take profits
             tickers_signal = "take puts profit"
             take_profit.append(1)
 
-        elif (self.stock_owned[0] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
-                df["close"].iloc[i] < df["close"].iloc[i - 1] - (
-                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.call_option_price.bid)) and abs(
-                self.call_cost - self.call_option_price.bid) >= abs(stop_loss))) \
-                and self.submitted == 0 and len(open_orders) == 0:
-            # conditions to sell calls to stop loss
-            tickers_signal = "sell call"
-            sell_index.append(0)
 
+        # elif (self.stock_owned[0] > 0) and (df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and
+        #                                     df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) and \
+        #         self.stock_owned[1] == 0 and self.block_buying == 0 and self.submitted == 0:
+        #     # conditions to sell calls and buy puts if trend reversed
+        #     tickers_signal = "sell call and buy puts"
+        #     sell_index.append(0)
+        #     buy_index.append(1)
+        #
+        # elif (self.stock_owned[1] > 0) and (df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and
+        #                                     df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) \
+        #         and self.stock_owned[0] == 0 and self.block_buying == 0 and self.submitted == 0:
+        #     # conditions to buy calls and sell puts if trend reversed
+        #     tickers_signal = "sell put and buy calls"
+        #     sell_index.append(1)
+        #     buy_index.append(0)
+        #
+        #
+        # elif (self.stock_owned[0] > 0) and (
+        #         (self.call_option_volume[-1] < self.call_option_volume[-4] and self.call_option_volume[-1] <
+        #          self.call_option_volume[-2] < self.call_option_volume[-3]) or
+        #         (self.max_call_price / self.call_cost) > 1.10) and (
+        #         self.max_call_price - 0.25 > self.call_contract_price + 0.25) and len(self.portfolio) > 0 \
+        #         and len(open_orders) == 0 and self.submitted == 0:  # conditions to sell calls to take profits
+        #     tickers_signal = "take calls profit"
+        #     take_profit.append(0)
+        #
+        # elif (self.stock_owned[1] > 0) and (
+        #         (self.put_option_volume[-1] < self.put_option_volume[-4] and self.put_option_volume[-1] <
+        #          self.put_option_volume[-2] < self.put_option_volume[-3]) or
+        #         (self.max_put_price / self.put_cost) > 1.14) and (
+        #         self.max_put_price - 0.25 > self.put_contract_price + 0.25) and len(self.portfolio) > 0 \
+        #         and len(open_orders) == 0 and self.submitted == 0:
+        #     # conditions to sell puts to take profits
+        #     tickers_signal = "take puts profit"
+        #     take_profit.append(1)
 
-        elif (self.stock_owned[1] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
-                df["close"].iloc[i] > df["close"].iloc[i - 1] + (
-                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.put_option_price.bid)) and abs(
-                self.put_cost - self.put_option_price.bid) >= abs(stop_loss))) \
-                and self.submitted == 0 and len(open_orders) == 0:
-            # conditions to sell puts to stop loss
-            tickers_signal = "sell put"
-            sell_index.append(1)
+        # elif (self.stock_owned[0] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
+        #         df["close"].iloc[i] < df["close"].iloc[i - 1] - (
+        #         ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.call_option_price.bid)) and abs(
+        #     self.call_cost - self.call_option_price.bid) >= abs(stop_loss))) \
+        #         and self.submitted == 0 and len(open_orders) == 0:
+        #     # conditions to sell calls to stop loss
+        #     tickers_signal = "sell call"
+        #     sell_index.append(0)
+        #
+        #
+        # elif (self.stock_owned[1] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
+        #         df["close"].iloc[i] > df["close"].iloc[i - 1] + (
+        #         ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.put_option_price.bid)) and abs(
+        #     self.put_cost - self.put_option_price.bid) >= abs(stop_loss))) \
+        #         and self.submitted == 0 and len(open_orders) == 0:
+        #     # conditions to sell puts to stop loss
+        #     tickers_signal = "sell put"
+        #     sell_index.append(1)
 
         else:
             tickers_signal = "Hold"
             sell_index = []
-            buy_index =[]
+            buy_index = []
             take_profit = []
 
         print(f'stocks owning = {self.stock_owned}')
@@ -560,27 +582,27 @@ def main():
 
 
 if __name__ == '__main__':
-
     today = datetime.today().weekday()
     ib = IB()
     res = get_data()
 
-    main()
-        # if ((today == 4 and datetime.now().hour > 14) or today == 5 or (today == 6 and
-        #                                                                          datetime.now().hour < 15)):
-        #     print('No market now, wait until Sunday at 15:00')
-        #     schedule.every().monday.at("15:00").do(main)
-        #
-        # elif 14 < datetime.now().hour < 15:
-        #     print('No market now, wait until 15:00')
-        #     schedule.every().day.at("15:00").do(main)
 
-        # while True:
-        #     schedule.run_pending()
-        #     ib.sleep(1)
-    # except Exception as e:
-    #     print(e)
-    #     ib.disconnect()
-    # except KeyboardInterrupt:
-    #     print('User stopped running')
-    #     ib.disconnect()
+    # if ((today == 4 and datetime.now().hour > 14) or today == 5 or (today == 6 and
+    #                                                                          datetime.now().hour < 15)):
+    #     print('No market now, wait until Sunday at 15:00')
+    #     schedule.every().monday.at("15:00").do(main)
+    #
+    # elif 14 < datetime.now().hour < 15:
+    #     print('No market now, wait until 15:00')
+    #     schedule.every().day.at("15:00").do(main)
+
+    try:
+        main()
+        schedule.run_pending()
+        ib.sleep(1)
+    except Exception as e:
+        print(e)
+        ib.disconnect()
+    except KeyboardInterrupt:
+        print('User stopped running')
+        ib.disconnect()
