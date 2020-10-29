@@ -17,7 +17,9 @@ class get_data:
     whatever ES price at """
 
     def __init__(self):
-        pass
+        global trading
+        self.trading = Trade
+        self.trading.ATR_factor = 1
 
     @staticmethod
     def next_exp_weekday():
@@ -86,17 +88,17 @@ class get_data:
         # ES_df['MA_21'] = ta.MA(ES_df['close'], timeperiod=21)
         # ES_df['MA_200'] = ta.MA(ES_df['close'], timeperiod=200)
         ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
-        ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=26)
+        ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=21)
         ES_df['derv_1'] = np.gradient(ES_df['EMA_9'])
         # ES_df['EMA_9_26']=df['EMA_9']/df['EMA_26']
         # ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
         # ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
         ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], timeperiod=20)
-        ES_df['roll_max_cp'] = ES_df['high'].rolling(20).max()
-        ES_df['roll_min_cp'] = ES_df['low'].rolling(20).min()
-        ES_df['roll_max_vol'] = ES_df['volume'].rolling(25).max()
+        ES_df['roll_max_cp'] = ES_df['high'].rolling(int(50 / self.trading.ATR_factor)).max()
+        ES_df['roll_min_cp'] = ES_df['low'].rolling(int(50 / self.trading.ATR_factor)).min()
+        ES_df['roll_max_vol'] = ES_df['volume'].rolling(int(50 / self.trading.ATR_factor)).max()
         # ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
-        ES_df['EMA_9-EMA_26'] = ES_df['EMA_9']-ES_df['EMA_26']
+        ES_df['EMA_9-EMA_26'] = ES_df['EMA_9'] - ES_df['EMA_26']
         # ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
         # ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace=True)
@@ -112,11 +114,13 @@ class Trade:
     def __init__(self):
 
         self.skip = False
+        self.call_cost = -1
+        self.put_cost = -1
         self.connect()
         ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX', currency='USD')  # define
         # ES-Mini futures contract
         ib.qualifyContracts(ES)
-        self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
+        self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='1 D',
                                        barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
                                        timeout=10)  # start data collection for ES-Mini
         self.data_raw = res.ES(self.ES)
@@ -146,6 +150,7 @@ class Trade:
         self.unrealizedPNL = float(self.account[32].value)
         self.realizedPNL = float(self.account[33].value)
         self.reqId = []
+        self.ATR_factor = 1
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
 
         ib.reqGlobalCancel()  # Making sure all orders for buying selling are canceled before starting trading
@@ -166,7 +171,7 @@ class Trade:
 
         df = self.data_raw[
             ['high', 'low', 'volume', 'close', 'RSI', 'ATR', 'roll_max_cp', 'roll_min_cp',
-             'roll_max_vol', 'EMA_9', 'EMA_26', 'EMA_9-EMA_26', 'derv_1']].tail()  # filter data
+             'roll_max_vol', 'EMA_9', 'EMA_26', 'EMA_9-EMA_26', 'derv_1']].tail(20)  # filter data
 
         if self.stock_owned.any() > 0 and not np.isnan(self.max_call_price) and not np.isnan(
                 self.max_put_price):
@@ -252,25 +257,43 @@ class Trade:
         i = -1  # use to get the last data in dataframe
 
         stop_loss = 1.75 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
-        ATR_factor = 0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
-        print("%%%%",((df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1])) or ((not np.isnan(self.put_option_price.bid)) and abs(
-                 self.put_cost - self.put_option_price.bid) >= abs(stop_loss))) and self.submitted == 0 and len(open_orders) ==0)
+        self.ATR_factor = 0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
+        print("%%%%", (((not np.isnan(self.put_option_price.bid)) and (
+                self.put_cost - self.put_option_price.bid) >= -1 * (stop_loss))) and self.submitted == 0 and len(
+            open_orders) == 0)
         print(
-             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
-             f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
-             f'calls and {self.stock_owned[1]} puts and ES = {self.data_raw.iloc[-1, 3]} and [call,puts] values are = '
-             f'{self.options_price} and stop loss ={stop_loss} and max call price = {self.max_call_price} compared to '
-             f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
-             f'{self.put_option_price.bid} and RSI = {df["RSI"].iloc[-1]} and df["ATR"] = {df["ATR"][-1]} '
-             f'and ATR_factor = {ATR_factor} and self.submitted = {self.submitted} and call volume = '
-             f'{self.call_option_volume[-1]} and put volume = {self.put_option_volume[-1]} and max call volume = '
-             f'{np.max(self.call_option_volume)} and max put volume = {np.max(self.put_option_volume)}')
-        # print((self.stock_owned[1] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
-        #             df["close"].iloc[i] > df["close"].iloc[i - 1] + (ATR_factor * df["ATR"].iloc[i - 1]))) or (
-        #                                                  (not np.isnan(self.put_option_price.bid)) and abs(
-        #                                              self.put_cost - self.put_option_price.bid) >= abs(
-        #                                              stop_loss))) and self.submitted == 0 and len(open_orders) == 0)
-        if df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
+            f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
+            f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
+            f'calls and {self.stock_owned[1]} puts and ES = {self.data_raw.iloc[-1, 3]} and [call,puts] values are = '
+            f'{self.options_price} and stop loss ={stop_loss} and max call price = {self.max_call_price} compared to '
+            f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
+            f'{self.put_option_price.bid} and RSI = {df["RSI"].iloc[-1]} and df["ATR"] = {df["ATR"][-1]} '
+            f'and self.ATR_factor = {self.ATR_factor} and self.submitted = {self.submitted} and call volume = '
+            f'{self.call_option_volume[-1]} and put volume = {self.put_option_volume[-1]} and max call volume = '
+            f'{np.max(self.call_option_volume)} and max put volume = {np.max(self.put_option_volume)}'
+            f' and dervitave = {df["derv_1"].iloc[-1]} and difference = {df["EMA_9-EMA_26"].iloc[-1]}'
+            f' and df["derv_1"].max() - 0.05 = {df["derv_1"].max() - 0.05} and df["derv_1"].min() + 0.05 = {df["derv_1"].min() + 0.05}')
+
+        print('++++++++++++++++++++', df["EMA_9-EMA_26"].iloc[1:8].any() < 0 < df["EMA_9-EMA_26"].iloc[-10:].any() \
+              and df["RSI"].iloc[i] < 80, '-----------------------',
+              df["EMA_9-EMA_26"].iloc[-10:].any() > 0 > df["EMA_9-EMA_26"].iloc[1:8].any() \
+              and df["RSI"].iloc[i] > 20)
+        print(df['EMA_9-EMA_26'].tail())
+        if (df["EMA_9-EMA_26"].iloc[1:8].any() < 0 < df["EMA_9-EMA_26"].iloc[-10:].any() and df["derv_1"].iloc[-1] >= 0.02)\
+                and df["RSI"].iloc[i] < 80 and (not (is_time_between(time(13, 50), time(14, 00)) or
+                                                     is_time_between(time(15, 00), time(15, 15)))) and \
+                buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.submitted == 0:
+            tickers_signal = "Buy call"
+            buy_index.append(0)
+
+        elif (df["EMA_9-EMA_26"].iloc[-10:].any() < 0 < df["EMA_9-EMA_26"].iloc[1:8].any() and df["derv_1"].iloc[-1] <= -0.02)\
+                and df["RSI"].iloc[i] > 20 and (not (is_time_between(time(13, 50), time(14, 00)) or
+                                                     is_time_between(time(15, 00), time(15, 15)))) and \
+                buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.submitted == 0:
+            tickers_signal = "Buy put"
+            buy_index.append(1)
+
+        elif df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
                 and df["RSI"].iloc[i] < 80 and (not (is_time_between(time(13, 50), time(14, 00)) or
                                                      is_time_between(time(15, 00), time(15, 15)))) and \
@@ -284,81 +307,37 @@ class Trade:
                 and df["RSI"].iloc[i] > 20 and (not (is_time_between(time(13, 50), time(14, 00)) or
                                                      is_time_between(time(15, 00), time(15, 15)))) and \
                 buy_index == [] and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.submitted == 0:
-            # conditions to sell calls
+            # conditions to buy puts
             tickers_signal = "Buy put"
             buy_index.append(1)
 
-        elif (self.stock_owned[0] > 0) and (df["derv_1"].iloc[i] < df["derv_1"].iloc[i - 1] and
-                                            df["derv_1"].iloc[i] < df["derv_1"].iloc[i - 2] and
-                                            df["derv_1"].iloc[i] < df["derv_1"].iloc[i - 3] and
-                                            df["derv_1"].iloc[i] < df["derv_1"].iloc[i - 4]) and len(self.portfolio) > 0 \
-                and len(open_orders) == 0 and self.submitted == 0:  # conditions to sell calls to take profits
-            tickers_signal = "take calls profit"
+
+        elif (self.stock_owned[0] > 0) and (
+                df["derv_1"].iloc[i] < -0.05 or df["derv_1"].iloc[-1] < df["derv_1"].max() - 0.05) \
+                and len(open_orders) == 0 and self.submitted == 0 and ((self.call_option_price.bid - 0.5) >= 0.25 + (self.call_cost)):  # conditions to sell calls to take profits
+            tickers_signal = "take profit calls"
             take_profit.append(0)
 
-        elif (self.stock_owned[1] > 0) and (df["derv_1"].iloc[i] > df["derv_1"].iloc[i - 1] and
-                                            df["derv_1"].iloc[i] > df["derv_1"].iloc[i - 2] and
-                                            df["derv_1"].iloc[i] > df["derv_1"].iloc[i - 3] and
-                                            df["derv_1"].iloc[i] > df["derv_1"].iloc[i - 4]) and len(self.portfolio) > 0 \
-                and len(open_orders) == 0 and self.submitted == 0:  # conditions to sell calls to take profits
-            tickers_signal = "take puts profit"
+        elif (self.stock_owned[1] > 0) and (
+                df["derv_1"].iloc[i] > 0.05 or df["derv_1"].iloc[-1] > df["derv_1"].min() + 0.05) \
+                and len(open_orders) == 0 and self.submitted == 0 and ((self.put_option_price.bid - 0.5) >= 0.25 + (self.put_cost)):  # conditions to sell calls to take profits
+            tickers_signal = "take profit puts"
             take_profit.append(1)
-
-
-        # elif (self.stock_owned[0] > 0) and (df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and
-        #                                     df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) and \
-        #         self.stock_owned[1] == 0 and self.block_buying == 0 and self.submitted == 0:
-        #     # conditions to sell calls and buy puts if trend reversed
-        #     tickers_signal = "sell call and buy puts"
-        #     sell_index.append(0)
-        #     buy_index.append(1)
-        #
-        # elif (self.stock_owned[1] > 0) and (df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and
-        #                                     df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) \
-        #         and self.stock_owned[0] == 0 and self.block_buying == 0 and self.submitted == 0:
-        #     # conditions to buy calls and sell puts if trend reversed
-        #     tickers_signal = "sell put and buy calls"
-        #     sell_index.append(1)
-        #     buy_index.append(0)
-        #
-        #
-        # elif (self.stock_owned[0] > 0) and (
-        #         (self.call_option_volume[-1] < self.call_option_volume[-4] and self.call_option_volume[-1] <
-        #          self.call_option_volume[-2] < self.call_option_volume[-3]) or
-        #         (self.max_call_price / self.call_cost) > 1.10) and (
-        #         self.max_call_price - 0.25 > self.call_contract_price + 0.25) and len(self.portfolio) > 0 \
-        #         and len(open_orders) == 0 and self.submitted == 0:  # conditions to sell calls to take profits
-        #     tickers_signal = "take calls profit"
-        #     take_profit.append(0)
-        #
-        # elif (self.stock_owned[1] > 0) and (
-        #         (self.put_option_volume[-1] < self.put_option_volume[-4] and self.put_option_volume[-1] <
-        #          self.put_option_volume[-2] < self.put_option_volume[-3]) or
-        #         (self.max_put_price / self.put_cost) > 1.14) and (
-        #         self.max_put_price - 0.25 > self.put_contract_price + 0.25) and len(self.portfolio) > 0 \
-        #         and len(open_orders) == 0 and self.submitted == 0:
-        #     # conditions to sell puts to take profits
-        #     tickers_signal = "take puts profit"
-        #     take_profit.append(1)
-
-        elif (self.stock_owned[0] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
-                df["close"].iloc[i] < df["close"].iloc[i - 1] - (
-                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.call_option_price.bid)) and abs(
-            self.call_cost - self.call_option_price.bid) >= abs(stop_loss))) \
+        elif (self.stock_owned[0] > 0) and ((df["EMA_9-EMA_26"].iloc[i] < - 0.5)
+                                            or ((not np.isnan(self.call_option_price.bid)) and abs(
+                    self.call_cost - self.call_option_price.bid) >= abs(stop_loss))) \
                 and self.submitted == 0 and len(open_orders) == 0:
             # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
 
 
-        elif (self.stock_owned[1] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
-                df["close"].iloc[i] > df["close"].iloc[i - 1] + (
-                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.put_option_price.bid)) and abs(
-            self.put_cost - self.put_option_price.bid) >= abs(stop_loss))) \
+        elif (self.stock_owned[1] > 0) and ((df["EMA_9-EMA_26"].iloc[i] > 0.5)
+                                            or ((not np.isnan(self.put_option_price.bid)) and abs(
+                    self.put_cost - self.put_option_price.bid) >= abs(stop_loss))) \
                 and self.submitted == 0 and len(open_orders) == 0:
             # conditions to sell puts to stop loss
             tickers_signal = "sell put"
-            sell_index.append(1)
 
         else:
             tickers_signal = "Hold"
@@ -385,7 +364,7 @@ class Trade:
                         currency='USD')  # define
             # ES-Mini futures contract
             ib.qualifyContracts(ES)
-            self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
+            self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='1 D',
                                            barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
                                            timeout=10)  # start data collection for ES-Mini
             print('attempt to restart data check')
@@ -455,10 +434,10 @@ class Trade:
                 assert False
             totalQuantity = abs(each.position)
 
-            print(f'price = {price.bid - 0.25}')
+            print(f'price = {price.bid + 0.25}')
             print(f'Take profit Position: {action} {totalQuantity} {contract.localSymbol}')
 
-            order = LimitOrder(action, totalQuantity, price.bid)
+            order = LimitOrder(action, totalQuantity, price.bid + 0.25)
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(15)
             if not trade.orderStatus.remaining == 0:
@@ -513,9 +492,9 @@ class Trade:
                 ib.qualifyContracts(put_position)
                 self.stock_owned[1] = each.position
                 self.put_cost = 0.25 * round(each.averageCost / 50 / 0.25)
-            else:
-                self.call_cost = -1
-                self.put_cost = -1
+
+        self.call_cost = self.call_cost if self.call_cost > 0 else -1
+        self.put_cost = self.put_cost if self.put_cost > 0 else -1
 
         self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
         ib.qualifyContracts(self.call_contract)
@@ -531,7 +510,7 @@ class Trade:
     @staticmethod
     def connect():
         ib.disconnect()
-        ib.connect('104.237.11.181', 7497, clientId=np.random.randint(10, 1000))
+        ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
         ib.client.MaxRequests = 55
         print('reconnected')
 
@@ -572,7 +551,6 @@ def is_time_between(begin_time, end_time, check_time=None):
 
 
 def main():
-    trading = Trade()
     ib.positionEvent += trading.option_position
     ib.accountSummaryEvent += trading.account_update
     ib.errorEvent += trading.error
@@ -584,7 +562,7 @@ if __name__ == '__main__':
     today = datetime.today().weekday()
     ib = IB()
     res = get_data()
-
+    trading = Trade()
 
     # if ((today == 4 and datetime.now().hour > 14) or today == 5 or (today == 6 and
     #                                                                          datetime.now().hour < 15)):
@@ -597,7 +575,6 @@ if __name__ == '__main__':
 
     try:
         main()
-        schedule.run_pending()
         ib.sleep(1)
     except Exception as e:
         print(e)
