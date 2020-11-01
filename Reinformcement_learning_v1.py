@@ -507,7 +507,7 @@ if __name__ == '__main__':
     maybe_make_dir(rewards_folder)
 
     res = get_data()
-    use = 'train'  # define the use for the code train or test
+    use = 'test'  # define the use for the code train or test
 
     while True:
 
@@ -608,7 +608,7 @@ if __name__ == '__main__':
                 print("UNEXPECTED EXCEPTION")
                 print(error)
                 break
-        else:
+        elif use == 'test':
             agent.epsilon = 0.0001
             t0 = datetime.now()
             val = test_trade(agent, env)
