@@ -29,16 +29,18 @@ def slope(ser,n):
     return np.array(slope_angle)
 
 def renko_df(df_raw):
+    ATR = (ta.ATR(df_raw['high'], df_raw['low'], df_raw['close'], 120)).max()
+    df_raw = df_raw[-300:]
     df_raw.reset_index(inplace = True)
     
     renko = Renko(df_raw[['date','open','high','low','close','volume']])
     
     
-    renko.brick_size = (ta.ATR(df_raw['high'], df_raw['low'], df_raw['close'], 21)).mean()
+    renko.brick_size = ATR
     
     df = renko.get_ohlc_data()
     df['bar_num'] = np.where(df['uptrend'] == True, 1, np.where(df['uptrend'] == False, -1, 0))
-    
+
     for i in range(1,len(df["bar_num"])):
         if df["bar_num"][i]>0 and df["bar_num"][i-1]>0:
             df["bar_num"][i]+=df["bar_num"][i-1]
@@ -136,14 +138,15 @@ class get_data:
         ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], timeperiod=20)
         ES_df['roll_max_cp'] = ES_df['high'].rolling(int(50 / self.trading.ATR_factor)).max()
         ES_df['roll_min_cp'] = ES_df['low'].rolling(int(50 / self.trading.ATR_factor)).min()
+        ES_df['Mean_ATR'] = (ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], 21)).mean()
         # ES_df['roll_max_vol'] = ES_df['volume'].rolling(int(50 / self.trading.ATR_factor)).max()
         # ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
         # ES_df['EMA_9-EMA_26'] = ES_df['EMA_9'] - ES_df['EMA_26']
         # ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
         # ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace=True)
-        ES_df = renko_df(ES_df.iloc[-405:, :])
-        return ES_df
+        ES_df = renko_df(ES_df)
+        return ES_df, ES_df['Mean_ATR'].iloc[-1]
 
 
 # self = Trade
@@ -164,7 +167,7 @@ class Trade:
         self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
                                        barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
                                        timeout=10)  # start data collection for ES-Mini
-        self.data_raw = res.ES(self.ES)
+        self.data_raw, self.mean_atr = res.ES(self.ES)
         self.stock_owned = np.zeros(2)  # get data from get data class
         self.option_position()  # check holding positions and initiate contracts for calls and puts
         ib.sleep(1)
@@ -206,7 +209,7 @@ class Trade:
                                                     self.put_option_price.bidSize)  # update put options volume
 
 
-        self.data_raw = res.ES(self.ES)
+        self.data_raw, self.mean_atr = res.ES(self.ES)
         # print(self.data_raw)
         df = self.data_raw[['date', 'close', 'bar_num', 'obv_slope']].tail(20)  # filter data
 
@@ -296,6 +299,7 @@ class Trade:
         i = -1  # use to get the last data in dataframe
 
         var = 2
+        print(df.iloc[-5:])
         print(
             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
             f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
@@ -304,7 +308,7 @@ class Trade:
             f'{self.options_price} and max call price = {self.max_call_price} compared to '
             f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
             f'{self.put_option_price.bid}'
-            f'and self.submitted = {self.submitted} ')
+            f'and self.submitted = {self.submitted} and renko bricks at {self.mean_atr}')
        
         if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] >= var and df["obv_slope"].iloc[i] > 25 and \
                 buy_index == [] and self.submitted == 0:
@@ -318,7 +322,7 @@ class Trade:
 
 
         
-        elif (self.stock_owned[0] > 0) and ( df["bar_num"].iloc[i] < var) \
+        elif (self.stock_owned[0] > 0) and (df["bar_num"].iloc[i] < var) \
                 and self.submitted == 0:
             # conditions to sell calls to stop loss
             tickers_signal = "sell call"

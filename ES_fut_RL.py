@@ -512,13 +512,13 @@ if __name__ == '__main__':
             import talib as ta
             from talib import MA_Type
             ib = IB()
-            ib.connect('104.237.11.181', 7497, clientId=np.random.randint(10, 1000))
+            ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
             ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
                         currency='USD')
             ib.qualifyContracts(ES)
             endDateTime = ''
             No_days = '3 D'
-            interval = '5 min'
+            interval = '1 min'
             data_raw = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000)))\
                                ,res.option_history(res.get_contract('P', 2000))) #collect live data of ES with TA and options prices
             data_raw.to_csv('./new_data.csv') # save data incase tws goes dowen
