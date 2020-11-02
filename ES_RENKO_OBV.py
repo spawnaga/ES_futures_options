@@ -28,8 +28,8 @@ def slope(ser,n):
     slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
     return np.array(slope_angle)
 
-def renko_df(df_raw):
-    ATR = (ta.ATR(df_raw['high'], df_raw['low'], df_raw['close'], 120)).mean()
+def renko_df(df_raw, ATR):
+
     df_raw = df_raw[-500:]
     df_raw.reset_index(inplace = True)
     
@@ -111,7 +111,7 @@ class get_data:
             else:
                 return contract
 
-    def ES(self, ES):
+    def ES(self, ES, ATR):
         """ By have the dataframe of ES futures, this function will analyze and
         provide technicals using TA-lib library"""
 
@@ -145,7 +145,7 @@ class get_data:
         # ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
         # ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace=True)
-        ES_df = renko_df(ES_df)
+        ES_df = renko_df(ES_df, ATR)
         return ES_df
 
 
@@ -167,7 +167,9 @@ class Trade:
         self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
                                        barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
                                        timeout=10)  # start data collection for ES-Mini
-        self.data_raw = res.ES(self.ES)
+        df_raw = util.df(self.ES)
+        self.ATR = (ta.ATR(df_raw['high'], df_raw['low'], df_raw['close'], 120)).mean()
+        self.data_raw = res.ES(self.ES, self.ATR)
         self.stock_owned = np.zeros(2)  # get data from get data class
         self.option_position()  # check holding positions and initiate contracts for calls and puts
         ib.sleep(1)
@@ -209,7 +211,7 @@ class Trade:
                                                     self.put_option_price.bidSize)  # update put options volume
 
 
-        self.data_raw = res.ES(self.ES)
+        self.data_raw = res.ES(self.ES, self.ATR)
         if self.data_raw['close'].iloc[-1] == 0:
             return
         if self.data_raw['close'].any() == 0:
