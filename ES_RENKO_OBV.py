@@ -197,6 +197,7 @@ class Trade:
         ib.reqGlobalCancel()  # Making sure all orders for buying selling are canceled before starting trading
 
     def trade(self, ES, hasNewBar=None):
+        self.option_position()
         while len(self.ES) ==0:
             ib.sleep(0)
         #
@@ -401,6 +402,7 @@ class Trade:
             else:
                 self.submitted = 0
                 self.stock_owned = np.zeros(2)
+                self.option_position()
 
             print(trade.orderStatus.status)
 
@@ -451,6 +453,7 @@ class Trade:
         if not trade.orderStatus.status == "Filled":
             ib.cancelOrder(order)
             self.submitted = 0
+            self.option_position()
         else:
 
             self.submitted = 0
