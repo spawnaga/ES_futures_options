@@ -142,8 +142,8 @@ class get_data:
         # ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
         # ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace=True)
-        ES_df = renko_df(ES_df)
-        return ES_df.iloc[-400:, :]
+        ES_df = renko_df(ES_df.iloc[-405:, :])
+        return ES_df
 
 
 # self = Trade
@@ -197,19 +197,14 @@ class Trade:
         ib.reqGlobalCancel()  # Making sure all orders for buying selling are canceled before starting trading
 
     def trade(self, ES, hasNewBar=None):
-        self.option_position()
-        while len(self.ES) ==0:
-            ib.sleep(0)
-        #
+
         self.ES = ES
-        buy_index = []  # set initial buy index to None
-        sell_index = []  # set initial sell index to None
-        take_profit = []  # set initial take profit index to None
+
         self.call_option_volume = self.roll_contract(self.call_option_volume,
                                                      self.call_option_price.bidSize)  # update call options volume
         self.put_option_volume = self.roll_contract(self.put_option_volume,
                                                     self.put_option_price.bidSize)  # update put options volume
-        open_orders = ib.reqAllOpenOrders()  # get current open orders
+
 
         self.data_raw = res.ES(self.ES)
         # print(self.data_raw)
@@ -232,20 +227,21 @@ class Trade:
         elif self.stock_owned[1] > 0:
             print(f'Put cost was = {self.put_cost}')
             print((self.put_option_price.bid - self.put_cost))
-        buy_index, sell_index, take_profit = self.strategy(df, open_orders)  # set initial buy index to None
+        buy_index, sell_index, take_profit = self.strategy(df)  # set initial buy index to None
 
         if sell_index:  # start selling to stop loss
 
             for i in sell_index:
                 # self.stock_owned[i] = 0
 
-                if len(self.portfolio) > 0 and len(open_orders) == 0 and self.submitted == 0:
+                if len(self.portfolio) > 0 and self.submitted == 0:
                     self.submitted = 1
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = ib.reqMktData(contract, '', False, False, None)
 
                     self.flatten_position(contract, price)
+            self.option_position()
 
         if take_profit:  # start selling to take profit
             for i in take_profit:
@@ -253,13 +249,14 @@ class Trade:
                 print(self.stock_owned[i])
                 print(len(self.portfolio))
 
-                if len(self.portfolio) > 0 and len(open_orders) == 0 and self.submitted == 0:
+                if len(self.portfolio) > 0 and self.submitted == 0:
                     self.submitted = 1
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = ib.reqMktData(contract, '', False, False, None)
 
                     self.take_profit(contract, price)
+            self.option_position()
 
         if buy_index:  # start buying to start trade
 
@@ -268,15 +265,16 @@ class Trade:
                 ib.qualifyContracts(contract)
 
                 if self.cash_in_hand > (self.options_price[i] * 50) and self.cash_in_hand > self.portfolio_value \
-                        and (self.stock_owned[0] < 1 or self.stock_owned[1] < 1) and len(self.portfolio) == 0 and len(
-                    open_orders) == 0 and self.submitted == 0:
+                        and (self.stock_owned[0] < 1 or self.stock_owned[1] < 1) and len(self.portfolio) == 0 and self.submitted == 0:
                     self.submitted = 1
                     price = self.call_option_price if i == 0 else self.put_option_price
                     quantity = int((self.cash_in_hand / (self.options_price[i] * 50)))
                     self.block_buying = 1
                     self.open_position(contract=contract, quantity=quantity, price=price)
 
-    def strategy(self, df, open_orders):
+            self.option_position()
+
+    def strategy(self, df):
         """
         Strategy to trade is:
 
@@ -321,13 +319,13 @@ class Trade:
 
         
         elif (self.stock_owned[0] > 0) and ( df["bar_num"].iloc[i] < var) \
-                and self.submitted == 0 and len(open_orders) == 0:
+                and self.submitted == 0:
             # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
             
-        elif (self.stock_owned[1] > 0) and ( df["bar_num"].iloc[i] > -var) \
-                and len(open_orders) == 0 and self.submitted == 0:  # conditions to sell calls to take profits
+        elif (self.stock_owned[1] > 0) and (df["bar_num"].iloc[i] > -var) \
+                and self.submitted == 0:  # conditions to sell calls to take profits
             tickers_signal = "sell puts"
             sell_index.append(1)
 
@@ -379,7 +377,8 @@ class Trade:
         portfolio = self.portfolio
         for each in portfolio:  # check current position and select contract
             print(price.bid)
-            if is_time_between(time(15, 00), time(15, 15)) or each.contract.right != contract.right or price.bid < 0.25:
+            if is_time_between(time(15, 00), time(15, 15)) or each.contract.right != contract.right or price.bid < 0.25 or len(ib.reqAllOpenOrders()) > 0 :
+                self.option_position()
                 return
             ib.qualifyContracts(each.contract)
             if each.position > 0:  # Number of active Long portfolio
@@ -402,10 +401,10 @@ class Trade:
             else:
                 self.submitted = 0
                 self.stock_owned = np.zeros(2)
-                self.option_position()
+
 
             print(trade.orderStatus.status)
-
+        self.option_position()
         return
 
     def take_profit(self, contract, price):  # start taking profit
@@ -413,10 +412,11 @@ class Trade:
         print('take_________________profit')
         portfolio = self.portfolio
         for each in portfolio:
-            if (price.bid - 0.5) <= 0.25 + (each.averageCost / 50):  # check if profit did happen
+            if (price.bid - 0.5) <= 0.25 + (each.averageCost / 50) or len(ib.reqAllOpenOrders()) > 0:  # check if profit did happen
                 print(price.bid, each.averageCost / 50)
                 print('cancel sell no profit yet')
                 self.submitted = 0
+                self.option_position()
                 return
             ib.qualifyContracts(each.contract)
             if each.position > 0:  # Number of active Long portfolio
@@ -441,10 +441,13 @@ class Trade:
 
                 self.submitted = 0
             print(trade.orderStatus.status)
-
+        self.option_position()
         return
 
     def open_position(self, contract, quantity, price):  # start position
+        if len(ib.reqAllOpenOrders()) > 0:
+            self.option_position()
+            return
         order = LimitOrder('BUY', quantity,
                            price.ask)  # round(25 * round(price[i]/25, 2), 2))
         trade = ib.placeOrder(contract, order)
@@ -461,7 +464,7 @@ class Trade:
         self.submitted = 0
         print(trade.orderStatus.status)
         self.block_buying = 0
-
+        self.option_position()
         return
 
     # def positions(self,contract):

@@ -518,7 +518,7 @@ if __name__ == '__main__':
             ib.qualifyContracts(ES)
             endDateTime = ''
             No_days = '3 D'
-            interval = '1 min'
+            interval = '5 min'
             data_raw = res.options(res.options(res.ES(),res.option_history(res.get_contract('C', 2000)))\
                                ,res.option_history(res.get_contract('P', 2000))) #collect live data of ES with TA and options prices
             data_raw.to_csv('./new_data.csv') # save data incase tws goes dowen
