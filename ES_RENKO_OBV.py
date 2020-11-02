@@ -29,8 +29,8 @@ def slope(ser,n):
     return np.array(slope_angle)
 
 def renko_df(df_raw):
-    ATR = (ta.ATR(df_raw['high'], df_raw['low'], df_raw['close'], 120)).max()
-    df_raw = df_raw[-300:]
+    ATR = (ta.ATR(df_raw['high'], df_raw['low'], df_raw['close'], 120)).mean()
+    df_raw = df_raw[-500:]
     df_raw.reset_index(inplace = True)
     
     renko = Renko(df_raw[['date','open','high','low','close','volume']])
@@ -122,23 +122,23 @@ class get_data:
         # ES_df['minutes'] = ES_df.index.strftime('%M').astype(int)
         # ES_df['hours + minutes'] = ES_df['hours'] * 100 + ES_df['minutes']
         # ES_df['Day_of_week'] = ES_df.index.dayofweek
-        ES_df['RSI'] = ta.RSI(ES_df['close'])
+        # ES_df['RSI'] = ta.RSI(ES_df['close'])
         # ES_df['macd'], ES_df['macdsignal'], ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26,
         #                                                                signalperiod=9)
         # ES_df['macd - macdsignal'] = ES_df['macd'] - ES_df['macdsignal']
         # ES_df['MA_9'] = ta.MA(ES_df['close'], timeperiod=9)
         # ES_df['MA_21'] = ta.MA(ES_df['close'], timeperiod=21)
         # ES_df['MA_200'] = ta.MA(ES_df['close'], timeperiod=200)
-        ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
-        ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=21)
-        ES_df['derv_1'] = np.gradient(ES_df['EMA_9'])
+        # ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
+        # ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=21)
+        # ES_df['derv_1'] = np.gradient(ES_df['EMA_9'])
         # ES_df['EMA_9_26']=df['EMA_9']/df['EMA_26']
         # ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
         # ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
         ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], timeperiod=20)
-        ES_df['roll_max_cp'] = ES_df['high'].rolling(int(50 / self.trading.ATR_factor)).max()
-        ES_df['roll_min_cp'] = ES_df['low'].rolling(int(50 / self.trading.ATR_factor)).min()
-        ES_df['Mean_ATR'] = (ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], 21)).mean()
+        # ES_df['roll_max_cp'] = ES_df['high'].rolling(int(50 / self.trading.ATR_factor)).max()
+        # ES_df['roll_min_cp'] = ES_df['low'].rolling(int(50 / self.trading.ATR_factor)).min()
+        # ES_df['Mean_ATR'] = (ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], 21)).mean()
         # ES_df['roll_max_vol'] = ES_df['volume'].rolling(int(50 / self.trading.ATR_factor)).max()
         # ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
         # ES_df['EMA_9-EMA_26'] = ES_df['EMA_9'] - ES_df['EMA_26']
@@ -146,7 +146,7 @@ class get_data:
         # ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace=True)
         ES_df = renko_df(ES_df)
-        return ES_df, ES_df['Mean_ATR'].iloc[-1]
+        return ES_df
 
 
 # self = Trade
@@ -167,7 +167,7 @@ class Trade:
         self.ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
                                        barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
                                        timeout=10)  # start data collection for ES-Mini
-        self.data_raw, self.mean_atr = res.ES(self.ES)
+        self.data_raw = res.ES(self.ES)
         self.stock_owned = np.zeros(2)  # get data from get data class
         self.option_position()  # check holding positions and initiate contracts for calls and puts
         ib.sleep(1)
@@ -209,7 +209,11 @@ class Trade:
                                                     self.put_option_price.bidSize)  # update put options volume
 
 
-        self.data_raw, self.mean_atr = res.ES(self.ES)
+        self.data_raw = res.ES(self.ES)
+        if self.data_raw['close'].iloc[-1] == 0:
+            return
+        if self.data_raw['close'].any() == 0:
+            return
         # print(self.data_raw)
         df = self.data_raw[['date', 'close', 'bar_num', 'obv_slope']].tail(20)  # filter data
 
@@ -298,7 +302,7 @@ class Trade:
         take_profit = []  # set initial take profit index to None
         i = -1  # use to get the last data in dataframe
 
-        var = 2
+
         print(df.iloc[-5:])
         print(
             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
@@ -308,27 +312,27 @@ class Trade:
             f'{self.options_price} and max call price = {self.max_call_price} compared to '
             f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
             f'{self.put_option_price.bid}'
-            f'and self.submitted = {self.submitted} and renko bricks at {self.mean_atr}')
+            f'and self.submitted = {self.submitted}')
        
-        if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] >= var and df["obv_slope"].iloc[i] > 25 and \
+        if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] >= 2 and df["obv_slope"].iloc[i] > 25 and \
                 buy_index == [] and self.submitted == 0:
             tickers_signal = "Buy call"
             buy_index.append(0)
 
-        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] <= -var and df["obv_slope"].iloc[i] < -25 and \
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] <= -2 and df["obv_slope"].iloc[i] < -25 and \
                 buy_index == [] and self.submitted == 0:
             tickers_signal = "Buy put"
             buy_index.append(1)
 
 
         
-        elif (self.stock_owned[0] > 0) and (df["bar_num"].iloc[i] < var) \
+        elif (self.stock_owned[0] > 0) and ( df["bar_num"].iloc[i] < 2) \
                 and self.submitted == 0:
             # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
             
-        elif (self.stock_owned[1] > 0) and (df["bar_num"].iloc[i] > -var) \
+        elif (self.stock_owned[1] > 0) and ( df["bar_num"].iloc[i] > -2) \
                 and self.submitted == 0:  # conditions to sell calls to take profits
             tickers_signal = "sell puts"
             sell_index.append(1)
@@ -393,7 +397,7 @@ class Trade:
                 assert False
             totalQuantity = abs(each.position)  # check holding quantity
 
-            print(f'price = {price.bid}')
+            print(f'price = {price.bid+0.25}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
             order = LimitOrder(action, totalQuantity, price.bid) if each.position > 0 \
                 else MarketOrder(action, totalQuantity)  # closing position as fast as possible
@@ -431,7 +435,7 @@ class Trade:
                 assert False
             totalQuantity = abs(each.position)
 
-            print(f'price = {price.bid + 0.25}')
+            print(f'price = {price.bid}')
             print(f'Take profit Position: {action} {totalQuantity} {contract.localSymbol}')
 
             order = LimitOrder(action, totalQuantity, price.bid + 0.25)
