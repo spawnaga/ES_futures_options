@@ -13,44 +13,44 @@ nest_asyncio.apply()  # enable nest asyncio
 sys.setrecursionlimit(10 ** 9)  # set recursion limit to 1000000000
 pd.options.mode.chained_assignment = None  # remove a warning
 
-def slope(ser,n):
+
+def slope(ser, n):
     "function to calculate the slope of n consecutive points on a plot"
-    slopes = [i*0 for i in range(n-1)]
-    for i in range(n,len(ser)+1):
-        y = ser[i-n:i]
+    slopes = [i * 0 for i in range(n - 1)]
+    for i in range(n, len(ser) + 1):
+        y = ser[i - n:i]
         x = np.array(range(n))
-        y_scaled = (y - y.min())/(y.max() - y.min())
-        x_scaled = (x - x.min())/(x.max() - x.min())
+        y_scaled = (y - y.min()) / (y.max() - y.min())
+        x_scaled = (x - x.min()) / (x.max() - x.min())
         x_scaled = sm.add_constant(x_scaled)
-        model = sm.OLS(y_scaled,x_scaled)
+        model = sm.OLS(y_scaled, x_scaled)
         results = model.fit()
         slopes.append(results.params[-1])
     slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
     return np.array(slope_angle)
 
-def renko_df(df_raw, ATR):
 
+def renko_df(df_raw, ATR):
     df_raw = df_raw[-500:]
-    df_raw.reset_index(inplace = True)
-    
-    renko = Renko(df_raw[['date','open','high','low','close','volume']])
-    
-    
+    df_raw.reset_index(inplace=True)
+
+    renko = Renko(df_raw[['date', 'open', 'high', 'low', 'close', 'volume']])
+
     renko.brick_size = ATR
-    
+
     df = renko.get_ohlc_data()
     df['bar_num'] = np.where(df['uptrend'] == True, 1, np.where(df['uptrend'] == False, -1, 0))
 
-    for i in range(1,len(df["bar_num"])):
-        if df["bar_num"][i]>0 and df["bar_num"][i-1]>0:
-            df["bar_num"][i]+=df["bar_num"][i-1]
-        elif df["bar_num"][i]<0 and df["bar_num"][i-1]<0:
-            df["bar_num"][i]+=df["bar_num"][i-1]
-    df.drop_duplicates(subset="date",keep="last",inplace=True)
-    df_raw = df_raw.merge(df.loc[:,["date","bar_num"]],how="outer",on="date")
-    df_raw["bar_num"].fillna(method='ffill',inplace=True)
+    for i in range(1, len(df["bar_num"])):
+        if df["bar_num"][i] > 0 and df["bar_num"][i - 1] > 0:
+            df["bar_num"][i] += df["bar_num"][i - 1]
+        elif df["bar_num"][i] < 0 and df["bar_num"][i - 1] < 0:
+            df["bar_num"][i] += df["bar_num"][i - 1]
+    df.drop_duplicates(subset="date", keep="last", inplace=True)
+    df_raw = df_raw.merge(df.loc[:, ["date", "bar_num"]], how="outer", on="date")
+    df_raw["bar_num"].fillna(method='ffill', inplace=True)
     df_raw['OBV'] = ta.OBV(df_raw['close'], df_raw['volume'])
-    df_raw["obv_slope"]= slope(df_raw['OBV'],5)
+    df_raw["obv_slope"] = slope(df_raw['OBV'], 5)
     return df_raw
 
 
@@ -168,7 +168,9 @@ class Trade:
                                        barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
                                        timeout=10)  # start data collection for ES-Mini
         df_raw = util.df(self.ES)
+        self.ATR_data = df_raw
         self.ATR = (ta.ATR(df_raw['high'], df_raw['low'], df_raw['close'], 120)).mean()
+        self.original_ATR = self.ATR
         self.data_raw = res.ES(self.ES, self.ATR)
         self.stock_owned = np.zeros(2)  # get data from get data class
         self.option_position()  # check holding positions and initiate contracts for calls and puts
@@ -198,18 +200,19 @@ class Trade:
         self.reqId = []
         self.ATR_factor = 1
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
-
+        self.ATR_minimum = self.ATR / 2
+        self.ATR_decrement = 0.005
         ib.reqGlobalCancel()  # Making sure all orders for buying selling are canceled before starting trading
 
     def trade(self, ES, hasNewBar=None):
-
+        # if self.stock_owned.any() > 0 and self.ATR > self.ATR_minimum:
+        #     self.ATR -= self.ATR_decrement
         self.ES = ES
 
         self.call_option_volume = self.roll_contract(self.call_option_volume,
                                                      self.call_option_price.bidSize)  # update call options volume
         self.put_option_volume = self.roll_contract(self.put_option_volume,
                                                     self.put_option_price.bidSize)  # update put options volume
-
 
         self.data_raw = res.ES(self.ES, self.ATR)
         if self.data_raw['close'].iloc[-1] == 0:
@@ -274,7 +277,8 @@ class Trade:
                 ib.qualifyContracts(contract)
 
                 if self.cash_in_hand > (self.options_price[i] * 50) and self.cash_in_hand > self.portfolio_value \
-                        and (self.stock_owned[0] < 1 or self.stock_owned[1] < 1) and len(self.portfolio) == 0 and self.submitted == 0:
+                        and (self.stock_owned[0] < 1 or self.stock_owned[1] < 1) and len(
+                    self.portfolio) == 0 and self.submitted == 0:
                     self.submitted = 1
                     price = self.call_option_price if i == 0 else self.put_option_price
                     quantity = int((self.cash_in_hand / (self.options_price[i] * 50)))
@@ -304,41 +308,48 @@ class Trade:
         take_profit = []  # set initial take profit index to None
         i = -1  # use to get the last data in dataframe
 
-
         print(df.iloc[-5:])
         print(
             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
             f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
-            f'calls and {self.stock_owned[1]} puts and ES = {self.data_raw.iloc[-1, 1]} and bar_num = {df["bar_num"].iloc[-1]} and obv_slope = {df["obv_slope"].iloc[-1]}' 
+            f'calls and {self.stock_owned[1]} puts and ES = {self.data_raw.iloc[-1, 1]} and bar_num = {df["bar_num"].iloc[-1]} and obv_slope = {df["obv_slope"].iloc[-1]}'
             f' and [call,puts] values are = '
             f'{self.options_price} and max call price = {self.max_call_price} compared to '
             f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
             f'{self.put_option_price.bid}'
-            f'and self.submitted = {self.submitted}')
-       
-        if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] >= 2 and df["obv_slope"].iloc[i] > 25 and \
+            f'and ATR = {self.ATR} and ATR minimum = {self.ATR_minimum}')
+
+        if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] >= 3 and \
+                df["obv_slope"].iloc[i] > 25 and \
                 buy_index == [] and self.submitted == 0:
             tickers_signal = "Buy call"
             buy_index.append(0)
 
-        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] <= -2 and df["obv_slope"].iloc[i] < -25 and \
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] <= -3 and \
+                df["obv_slope"].iloc[i] < -25 and \
                 buy_index == [] and self.submitted == 0:
             tickers_signal = "Buy put"
             buy_index.append(1)
 
+        elif (self.stock_owned[0] > 0) and (df["bar_num"].iloc[i-1] < 2) and not (df["bar_num"].iloc[i - 1] == -1 and
+                                                                                df["bar_num"].iloc[i - 2] == -1
+                                                                                and df["bar_num"].iloc[i - 3] == -1 and
+                                                                                df["bar_num"].iloc[
+                                                                                    i - 4] == -1) and self.submitted == 0:
 
-        
-        elif (self.stock_owned[0] > 0) and ( df["bar_num"].iloc[i] < 2) \
-                and self.submitted == 0:
             # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
-            
-        elif (self.stock_owned[1] > 0) and ( df["bar_num"].iloc[i] > -2) \
-                and self.submitted == 0:  # conditions to sell calls to take profits
+
+        elif (self.stock_owned[1] > 0) and (df["bar_num"].iloc[i-1] > -2) and not (df["bar_num"].iloc[i - 1] == 1 and
+                                                                                 df["bar_num"].iloc[i - 2] == 1
+                                                                                 and df["bar_num"].iloc[i - 3] == 1 and
+                                                                                 df["bar_num"].iloc[
+                                                                                     i - 4] == 1) and self.submitted == 0:
+
+            # conditions to sell calls to take profits
             tickers_signal = "sell puts"
             sell_index.append(1)
-
 
         else:
             tickers_signal = "Hold"
@@ -387,7 +398,9 @@ class Trade:
         portfolio = self.portfolio
         for each in portfolio:  # check current position and select contract
             print(price.bid)
-            if is_time_between(time(15, 00), time(15, 15)) or each.contract.right != contract.right or price.bid < 0.25 or len(ib.reqAllOpenOrders()) > 0 :
+            if is_time_between(time(15, 00),
+                               time(15, 15)) or each.contract.right != contract.right or price.bid < 0.25 or len(
+                    ib.reqAllOpenOrders()) > 0:
                 self.option_position()
                 return
             ib.qualifyContracts(each.contract)
@@ -399,7 +412,7 @@ class Trade:
                 assert False
             totalQuantity = abs(each.position)  # check holding quantity
 
-            print(f'price = {price.bid+0.25}')
+            print(f'price = {price.bid + 0.25}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
             order = LimitOrder(action, totalQuantity, price.bid) if each.position > 0 \
                 else MarketOrder(action, totalQuantity)  # closing position as fast as possible
@@ -411,7 +424,7 @@ class Trade:
             else:
                 self.submitted = 0
                 self.stock_owned = np.zeros(2)
-
+                self.ATR = self.original_ATR
 
             print(trade.orderStatus.status)
         self.option_position()
@@ -422,7 +435,8 @@ class Trade:
         print('take_________________profit')
         portfolio = self.portfolio
         for each in portfolio:
-            if (price.bid - 0.5) <= 0.25 + (each.averageCost / 50) or len(ib.reqAllOpenOrders()) > 0:  # check if profit did happen
+            if (price.bid - 0.5) <= 0.25 + (each.averageCost / 50) or len(
+                    ib.reqAllOpenOrders()) > 0:  # check if profit did happen
                 print(price.bid, each.averageCost / 50)
                 print('cancel sell no profit yet')
                 self.submitted = 0
@@ -475,6 +489,7 @@ class Trade:
         print(trade.orderStatus.status)
         self.block_buying = 0
         self.option_position()
+        self.ATR = self.original_ATR
         return
 
     # def positions(self,contract):
