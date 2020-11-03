@@ -318,14 +318,14 @@ class Trade:
             f'{self.put_option_price.bid}'
             f'and ATR = {self.ATR} and ATR minimum = {self.ATR_minimum}')
 
-        if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] >= 3 and \
-                df["obv_slope"].iloc[i] > 25 and \
+        if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i-1] >= 2 and \
+                df["obv_slope"].iloc[i-1] > 25 and \
                 buy_index == [] and self.submitted == 0:
             tickers_signal = "Buy call"
             buy_index.append(0)
 
-        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i] <= -3 and \
-                df["obv_slope"].iloc[i] < -25 and \
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i-1] <= -2 and \
+                df["obv_slope"].iloc[i-1] < -25 and \
                 buy_index == [] and self.submitted == 0:
             tickers_signal = "Buy put"
             buy_index.append(1)
