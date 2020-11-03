@@ -215,9 +215,8 @@ class Trade:
                                                     self.put_option_price.bidSize)  # update put options volume
 
         self.data_raw = res.ES(self.ES, self.ATR)
-        if self.data_raw['close'].iloc[-1] == 0:
-            return
-        if self.data_raw['close'].any() == 0:
+
+        if self.data_raw.iloc[-1, 1] == 0:
             return
         # print(self.data_raw)
         df = self.data_raw[['date', 'close', 'bar_num', 'obv_slope']].tail(20)  # filter data
