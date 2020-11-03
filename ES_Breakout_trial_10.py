@@ -346,20 +346,20 @@ class Trade:
         #     tickers_signal = "take puts profit"
         #     take_profit.append(1)
 
-        elif (self.stock_owned[0] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
-                df["close"].iloc[i] < df["close"].iloc[i - 1] - (
-                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.call_option_price.bid)) and abs(
-            self.call_cost - self.call_option_price.bid) >= abs(stop_loss))) \
+        elif (self.stock_owned[0] > 0) and ((df["close"].iloc[i - 2] > 0.0 and df["close"].iloc[i-1] > 0.0 and (
+                df["close"].iloc[i-1] < df["close"].iloc[i - 2] - (
+                ATR_factor * df["ATR"].iloc[i - 2]))) or ((not np.isnan(self.call_option_price.bid)) and (
+            self.call_cost - self.call_option_price.bid) <= -1 * (stop_loss))) \
                 and self.submitted == 0 and len(open_orders) == 0:
             # conditions to sell calls to stop loss
             tickers_signal = "sell call"
             sell_index.append(0)
 
 
-        elif (self.stock_owned[1] > 0) and ((df["close"].iloc[i - 1] > 0.0 and df["close"].iloc[i] > 0.0 and (
-                df["close"].iloc[i] > df["close"].iloc[i - 1] + (
-                ATR_factor * df["ATR"].iloc[i - 1]))) or ((not np.isnan(self.put_option_price.bid)) and abs(
-            self.put_cost - self.put_option_price.bid) >= abs(stop_loss))) \
+        elif (self.stock_owned[1] > 0) and ((df["close"].iloc[i - 2] > 0.0 and df["close"].iloc[i-1] > 0.0 and (
+                df["close"].iloc[i-1] > df["close"].iloc[i - 2] + (
+                ATR_factor * df["ATR"].iloc[i - 2]))) or ((not np.isnan(self.put_option_price.bid)) and (
+            self.put_cost - self.put_option_price.bid) <= -1 * (stop_loss))) \
                 and self.submitted == 0 and len(open_orders) == 0:
             # conditions to sell puts to stop loss
             tickers_signal = "sell put"
