@@ -308,7 +308,7 @@ class Trade:
         i = -1  # use to get the last data in dataframe
         stop_loss = 1 + 1.75 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
         self.ATR_factor = 0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
-        print(df.iloc[-5:])
+        # print(df.iloc[-5:])
         print(
             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
             f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
@@ -318,6 +318,9 @@ class Trade:
             f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
             f'{self.put_option_price.bid}'
             f'and ATR = {self.ATR} and ATR minimum = {self.ATR_minimum} and stop_loss = {stop_loss}')
+        if self.stock_owned[0] == 0 and self.stock_owned[1] ==0 and self.portfolio_value !=0:
+            self.option_position()
+            self.submitted =0
 
 
         if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] >= 2 and \
