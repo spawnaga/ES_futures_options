@@ -309,6 +309,7 @@ class Trade:
         stop_loss = 1 + 1.75 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
         self.ATR_factor = 0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
         # print(df.iloc[-5:])
+
         print(
             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
             f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
@@ -324,14 +325,14 @@ class Trade:
             self.submitted = 0
 
         if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] >= 2 and \
-                df["obv_slope"].iloc[i - 1] > 25 and not (df["roll_max_cp"].iloc[i - 1] - 0.25 < df["high"].iloc[i]) and\
-                df['RSI'] < 85 and buy_index == [] and self.submitted == 0:
+                df["obv_slope"].iloc[i - 1] > 25 and not (df["roll_max_cp"].iloc[i - 2] < df["close"].iloc[i-1]) and\
+                df['RSI'].iloc[-2] < 85 and buy_index == [] and self.submitted == 0:
             tickers_signal = "Buy call"
             buy_index.append(0)
 
         elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] <= -2 and \
-                df["obv_slope"].iloc[i - 1] < -25 and not (df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] + 0.5) and\
-                df['RSI'] > 25 and buy_index == [] and self.submitted == 0:
+                df["obv_slope"].iloc[i - 1] < -25 and not (df["close"].iloc[i-1] <= df["roll_min_cp"].iloc[i - 2]) and\
+                df['RSI'].iloc[i-2] > 25 and buy_index == [] and self.submitted == 0:
             tickers_signal = "Buy put"
             buy_index.append(1)
 
@@ -356,7 +357,7 @@ class Trade:
 
         elif ((self.stock_owned[0] > 0) and (((df["bar_num"].iloc[i - 1] < 2) and not (df["bar_num"].iloc[i - 1] == -1 and
             df["bar_num"].iloc[i - 2] == -1 and df["bar_num"].iloc[i - 3] == -1 and df["bar_num"].iloc[i - 4] == -1)) or
-            (self.max_call_price / self.call_cost) > 1.20 and not df["obv_slope"].iloc[i - 1] > 25) \
+            (self.max_call_price / self.call_cost) > 1.10 and not df["obv_slope"].iloc[i - 1] > 25) \
             and self.submitted == 0) and ((self.call_option_price.bid - 0.5) >= 0.25 + (self.call_cost)):
 
             # conditions to sell calls to stop loss
@@ -365,7 +366,7 @@ class Trade:
 
         elif ((self.stock_owned[1] > 0) and (((df["bar_num"].iloc[i - 1] > -2) and not (df["bar_num"].iloc[i - 1] == 1 and
             df["bar_num"].iloc[i - 2] == 1 and df["bar_num"].iloc[i - 3] == 1 and df["bar_num"].iloc[i - 4] == 1)) or
-            (self.max_put_price / self.put_cost) > 1.25 and not df["obv_slope"].iloc[i - 1] < -25) and \
+            (self.max_put_price / self.put_cost) > 1.10 and not df["obv_slope"].iloc[i - 1] < -25) and \
                 self.submitted == 0) and ((self.put_option_price.bid - 0.5) >= 0.5 + (self.put_cost)):
 
             # conditions to sell calls to take profits
