@@ -332,10 +332,6 @@ class Trade:
             f'and ATR = {self.ATR} and ATR minimum = {self.ATR_minimum} and stop_loss = {stop_loss} and self.put_option_price_average = '
             f'{self.put_option_price_average.mean()} and slop[-1] ={df["obv_slope"].iloc[-2]}')
 
-        if (self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.portfolio_value != 0) or (self.stock_owned[0] != 0 or self.stock_owned[1] != 0 and self.portfolio_value == 0) :
-            self.option_position()
-            self.submitted = 0
-
 
         if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] >= 2 and \
                 df["obv_slope"].iloc[i - 1] > 25 and (not (df["roll_max_cp"].iloc[i - 2] - 0.5 < df["close"].iloc[i-1])) and\
@@ -463,7 +459,6 @@ class Trade:
                 self.submitted = 0
             else:
                 self.submitted = 0
-                self.stock_owned = np.zeros(2)
                 self.ATR = self.original_ATR
 
             print(trade.orderStatus.status)
@@ -505,8 +500,6 @@ class Trade:
                 ib.cancelOrder(order)
                 self.submitted = 0
             else:
-                self.stock_owned = np.zeros(2)
-
                 self.submitted = 0
             print(trade.orderStatus.status)
         self.option_position()
@@ -516,7 +509,7 @@ class Trade:
         if len(ib.reqAllOpenOrders()) > 0:
             self.option_position()
             return
-        order = LimitOrder('BUY', quantity,
+        order = LimitOrder('BUY', 1,
                            price.ask)  # round(25 * round(price[i]/25, 2), 2))
         trade = ib.placeOrder(contract, order)
         print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
@@ -536,12 +529,8 @@ class Trade:
         self.ATR = self.original_ATR
         return
 
-    # def positions(self,contract):
-    #     self.stock_owned = np.zeros(2)
-    #     self.portfolio = ib.portfolio()
 
     def option_position(self, event=None):
-        self.stock_owned = np.zeros(2)
         position = ib.portfolio()
         self.portfolio = position
         call_position = None
@@ -605,6 +594,9 @@ class Trade:
                 self.submitted = 0
         if not self.unrealizedPNL == 0 and not self.stock_owned.any() > 0:
             self.option_position()
+        if (self.portfolio_value != 0 and self.stock_owned[0] == 0 and self.stock_owned[1] == 0) or (self.stock_owned[0] != 0 or self.stock_owned[1] != 0 and self.portfolio_value == 0) :
+            self.option_position()
+            self.submitted = 0
 
 
 def is_time_between(begin_time, end_time, check_time=None):
