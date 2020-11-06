@@ -122,7 +122,7 @@ class get_data:
         # ES_df['minutes'] = ES_df.index.strftime('%M').astype(int)
         # ES_df['hours + minutes'] = ES_df['hours'] * 100 + ES_df['minutes']
         # ES_df['Day_of_week'] = ES_df.index.dayofweek
-        # ES_df['RSI'] = ta.RSI(ES_df['close'])
+        ES_df['RSI'] = ta.RSI(ES_df['close'], timeperiod=9)
         # ES_df['macd'], ES_df['macdsignal'], ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26,
         #                                                                signalperiod=9)
         # ES_df['macd - macdsignal'] = ES_df['macd'] - ES_df['macdsignal']
@@ -136,8 +136,8 @@ class get_data:
         # ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
         # ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
         ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], timeperiod=20)
-        # ES_df['roll_max_cp'] = ES_df['high'].rolling(int(50 / self.trading.ATR_factor)).max()
-        # ES_df['roll_min_cp'] = ES_df['low'].rolling(int(50 / self.trading.ATR_factor)).min()
+        ES_df['roll_max_cp'] = ES_df['high'].rolling(int(50 / self.trading.ATR_factor)).max()
+        ES_df['roll_min_cp'] = ES_df['low'].rolling(int(50 / self.trading.ATR_factor)).min()
         # ES_df['Mean_ATR'] = (ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], 21)).mean()
         # ES_df['roll_max_vol'] = ES_df['volume'].rolling(int(50 / self.trading.ATR_factor)).max()
         # ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
@@ -219,7 +219,7 @@ class Trade:
         if self.data_raw.iloc[-1, 1] == 0:
             return
         # print(self.data_raw)
-        df = self.data_raw[['date', 'close', 'bar_num', 'obv_slope', 'ATR']].tail(20)  # filter data
+        df = self.data_raw[['date','high', 'low', 'close', 'bar_num', 'obv_slope', 'ATR', 'RSI', 'roll_max_cp', 'roll_min_cp']].tail(20)  # filter data
 
         if self.stock_owned.any() > 0 and not np.isnan(self.max_call_price) and not np.isnan(
                 self.max_put_price):
@@ -318,20 +318,20 @@ class Trade:
             f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
             f'{self.put_option_price.bid}'
             f'and ATR = {self.ATR} and ATR minimum = {self.ATR_minimum} and stop_loss = {stop_loss}')
-        if self.stock_owned[0] == 0 and self.stock_owned[1] ==0 and self.portfolio_value !=0:
-            self.option_position()
-            self.submitted =0
 
+        if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.portfolio_value != 0:
+            self.option_position()
+            self.submitted = 0
 
         if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] >= 2 and \
-                df["obv_slope"].iloc[i - 1] > 25 and \
-                buy_index == [] and self.submitted == 0:
+                df["obv_slope"].iloc[i - 1] > 25 and not (df["roll_max_cp"].iloc[i - 1] - 0.25 < df["high"].iloc[i]) and\
+                df['RSI'] < 85 and buy_index == [] and self.submitted == 0:
             tickers_signal = "Buy call"
             buy_index.append(0)
 
         elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] <= -2 and \
-                df["obv_slope"].iloc[i - 1] < -25 and \
-                buy_index == [] and self.submitted == 0:
+                df["obv_slope"].iloc[i - 1] < -25 and not (df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] + 0.5) and\
+                df['RSI'] > 25 and buy_index == [] and self.submitted == 0:
             tickers_signal = "Buy put"
             buy_index.append(1)
 
@@ -421,9 +421,15 @@ class Trade:
         portfolio = self.portfolio
         for each in portfolio:  # check current position and select contract
             print(price.bid)
+            if each.contract != contract:
+                if contract.right == 'C':
+                    self.call_contract = each.contract
+                elif contract.right == 'P':
+                    self.put_contract = each.contract
+                return
             if is_time_between(time(15, 00),
-                               time(15, 15)) or each.contract.right != contract.right or price.bid < 0.25 or len(
-                ib.reqAllOpenOrders()) > 0:
+                               time(15, 15)) or each.contract.right != contract.right or price.bid < 1.25 or len(
+                ib.reqAllOpenOrders()) > 0 or abs(price.bidGreeks.optPrice) - price.bid > 10:
                 self.option_position()
                 return
             ib.qualifyContracts(each.contract)
@@ -458,6 +464,12 @@ class Trade:
         print('take_________________profit')
         portfolio = self.portfolio
         for each in portfolio:
+            if each.contract != contract:
+                if contract.right == 'C':
+                    self.call_contract = each.contract
+                elif contract.right == 'P':
+                    self.put_contract = each.contract
+                return
             if (price.bid - 0.5) <= 0.25 + (each.averageCost / 50):  # check if profit did happen
                 print(price.bid, each.averageCost / 50)
                 print('cancel sell no profit yet')
