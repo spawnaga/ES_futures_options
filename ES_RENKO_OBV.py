@@ -176,8 +176,11 @@ class Trade:
         self.option_position()  # check holding positions and initiate contracts for calls and puts
         ib.sleep(1)
         self.call_option_volume = np.ones(20)  # start call options volume array to get the max volume in the last 20
+        self.call_option_price_average = np.ones(3)  # start call options volume array to get the max volume in the last 20
+        self.call_option_price_average = np.ones(3)
         self.put_option_volume = np.ones(
             20)  # start put options volume array to get the max volume in the last 20 ticks
+        self.put_option_price_average = np.ones(3)
         self.block_buying = 0  # Buying flag
         self.submitted = 0  # order submission flag
         self.portfolio = ib.portfolio()
@@ -213,6 +216,8 @@ class Trade:
                                                      self.call_option_price.bidSize)  # update call options volume
         self.put_option_volume = self.roll_contract(self.put_option_volume,
                                                     self.put_option_price.bidSize)  # update put options volume
+        self.call_option_price_average = self.roll_contract(self.call_option_price_average, self.call_option_price)
+        self.put_option_price_average = self.roll_contract(self.put_option_price_average, self.put_option_price)
 
         self.data_raw = res.ES(self.ES, self.ATR)
 
@@ -318,7 +323,8 @@ class Trade:
             f'{self.options_price} and max call price = {self.max_call_price} compared to '
             f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
             f'{self.put_option_price.bid}'
-            f'and ATR = {self.ATR} and ATR minimum = {self.ATR_minimum} and stop_loss = {stop_loss}')
+            f'and ATR = {self.ATR} and ATR minimum = {self.ATR_minimum} and stop_loss = {stop_loss} and self.put_option_price_average = '
+            f'{self.put_option_price_average}')
 
         if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.portfolio_value != 0:
             self.option_position()
