@@ -122,7 +122,7 @@ class get_data:
         # ES_df['minutes'] = ES_df.index.strftime('%M').astype(int)
         # ES_df['hours + minutes'] = ES_df['hours'] * 100 + ES_df['minutes']
         # ES_df['Day_of_week'] = ES_df.index.dayofweek
-        ES_df['RSI'] = ta.RSI(ES_df['close'], timeperiod=9)
+        ES_df['RSI'] = ta.RSI(ES_df['close'], timeperiod=21)
         # ES_df['macd'], ES_df['macdsignal'], ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26,
         #                                                                signalperiod=9)
         # ES_df['macd - macdsignal'] = ES_df['macd'] - ES_df['macdsignal']
@@ -176,11 +176,13 @@ class Trade:
         self.option_position()  # check holding positions and initiate contracts for calls and puts
         ib.sleep(1)
         self.call_option_volume = np.ones(20)  # start call options volume array to get the max volume in the last 20
-        self.call_option_price_average = np.ones(3)  # start call options volume array to get the max volume in the last 20
-        self.call_option_price_average = np.ones(3)
+        self.call_option_price_average = np.ones(
+            2)  # start call options volume array to get the max volume in the last 20
         self.put_option_volume = np.ones(
             20)  # start put options volume array to get the max volume in the last 20 ticks
         self.put_option_price_average = np.ones(3)
+        self.call_option_price_average = self.roll_contract(self.call_option_price_average, self.call_option_price.bid)
+        self.put_option_price_average = self.roll_contract(self.put_option_price_average, self.put_option_price.bid)
         self.block_buying = 0  # Buying flag
         self.submitted = 0  # order submission flag
         self.portfolio = ib.portfolio()
@@ -205,6 +207,8 @@ class Trade:
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
         self.ATR_minimum = self.ATR / 2
         self.ATR_decrement = 0.005
+        self.call_option_price_average = self.roll_contract(self.call_option_price_average, self.call_option_price.bid)
+        self.put_option_price_average = self.roll_contract(self.put_option_price_average, self.put_option_price.bid)
         ib.reqGlobalCancel()  # Making sure all orders for buying selling are canceled before starting trading
 
     def trade(self, ES, hasNewBar=None):
@@ -224,7 +228,9 @@ class Trade:
         if self.data_raw.iloc[-1, 1] == 0:
             return
         # print(self.data_raw)
-        df = self.data_raw[['date','high', 'low', 'close', 'bar_num', 'obv_slope', 'ATR', 'RSI', 'roll_max_cp', 'roll_min_cp']].tail(20)  # filter data
+        df = self.data_raw[
+            ['date', 'high', 'low', 'close', 'bar_num', 'obv_slope', 'ATR', 'RSI', 'roll_max_cp', 'roll_min_cp']].tail(
+            20)  # filter data
 
         if self.stock_owned.any() > 0 and not np.isnan(self.max_call_price) and not np.isnan(
                 self.max_put_price):
@@ -239,12 +245,13 @@ class Trade:
 
         if self.stock_owned[0] > 0:
             print(f'Call cost was = {self.call_cost}')
-            print((self.call_option_price.bid - self.call_cost))
+            print((self.call_option_price_average.mean() - self.call_cost))
         elif self.stock_owned[1] > 0:
             print(f'Put cost was = {self.put_cost}')
-            print((self.put_option_price.bid - self.put_cost))
+            print((self.put_option_price_average.mean() - self.put_cost))
         buy_index, sell_index, take_profit = self.strategy(df)  # set initial buy index to None
-
+        print(f'stocks owning = {self.stock_owned}')
+        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         if sell_index:  # start selling to stop loss
 
             for i in sell_index:
@@ -257,9 +264,10 @@ class Trade:
                     price = ib.reqMktData(contract, '', False, False, None)
 
                     self.flatten_position(contract, price)
+            self.submitted = 0
+            self.option_position()
 
-
-        if take_profit:  # start selling to take profit
+        elif take_profit:  # start selling to take profit
             for i in take_profit:
 
                 print(self.stock_owned[i])
@@ -271,9 +279,10 @@ class Trade:
                     ib.qualifyContracts(contract)
                     price = ib.reqMktData(contract, '', False, False, None)
                     self.take_profit(contract, price)
+            self.submitted = 0
+            self.option_position()
 
-
-        if buy_index:  # start buying to start trade
+        elif buy_index:  # start buying to start trade
 
             for i in buy_index:
                 contract = self.call_contract if i == 0 else self.put_contract
@@ -287,8 +296,8 @@ class Trade:
                     quantity = int((self.cash_in_hand / (self.options_price[i] * 50)))
                     self.block_buying = 1
                     self.open_position(contract=contract, quantity=quantity, price=price)
-
-
+            self.submitted = 0
+            self.option_position()
 
     def strategy(self, df):
         """
@@ -306,6 +315,7 @@ class Trade:
                 - Option price made 20% profits
                 - Option volume reduce to 1 / 8 in the next tick
         """
+
         buy_index = []  # set initial buy index to None
         sell_index = []  # set initial sell index to None
         take_profit = []  # set initial take profit index to None
@@ -323,74 +333,71 @@ class Trade:
             f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
             f'{self.put_option_price.bid}'
             f'and ATR = {self.ATR} and ATR minimum = {self.ATR_minimum} and stop_loss = {stop_loss} and self.put_option_price_average = '
-            f'{self.put_option_price_average}')
-
-        if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and self.portfolio_value != 0:
-            self.option_position()
-            self.submitted = 0
+            f'{self.put_option_price_average.mean()} and slop[-1] ={df["obv_slope"].iloc[-2]} and self.submitted = {self.submitted}')
 
         if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] >= 2 and \
-                df["obv_slope"].iloc[i - 1] > 25 and not (df["roll_max_cp"].iloc[i - 2] < df["close"].iloc[i-1]) and\
+                df["obv_slope"].iloc[i - 1] > 25 and (
+                not (df["roll_max_cp"].iloc[i - 2] - 0.5 < df["close"].iloc[i - 1])) and \
                 df['RSI'].iloc[-2] < 85 and buy_index == [] and self.submitted == 0:
-            tickers_signal = "Buy call"
+            print("Buy call")
             buy_index.append(0)
+            return buy_index, sell_index, take_profit
 
         elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] <= -2 and \
-                df["obv_slope"].iloc[i - 1] < -25 and not (df["close"].iloc[i-1] <= df["roll_min_cp"].iloc[i - 2]) and\
-                df['RSI'].iloc[i-2] > 25 and buy_index == [] and self.submitted == 0:
-            tickers_signal = "Buy put"
+                df["obv_slope"].iloc[i - 1] < -25 and (
+                not (df["close"].iloc[i - 1] <= df["roll_min_cp"].iloc[i - 2] + 0.5)) and \
+                df['RSI'].iloc[i - 2] > 25 and buy_index == [] and self.submitted == 0:
+            print("Buy put")
             buy_index.append(1)
+            return buy_index, sell_index, take_profit
 
-        elif (self.stock_owned[0] > 0) and (((not np.isnan(self.call_option_price.bid)) and (
-                self.call_option_price.bid - self.call_cost) <= -1 * stop_loss)) \
-                and self.submitted == 0:
+        elif (self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and
+                                            ((self.call_option_price_average[0] - self.call_cost) <= -1 * stop_loss) or
+                                            (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[
+                                                i - 1] < -30)) and self.submitted == 0:
 
             # conditions to sell calls to stop loss
 
-            tickers_signal = "sell call"
+            print("sell call")
             sell_index.append(0)
+            return buy_index, sell_index, take_profit
 
-        elif (self.stock_owned[1] > 0) and (((not np.isnan(self.put_option_price.bid)) and (
-                self.put_option_price.bid - self.put_cost) <= -1 * stop_loss)) \
+        elif (self.stock_owned[1] > 0) and ((not np.isnan(self.put_option_price.bid)) and (
+                (self.put_option_price_average[0] - self.put_cost) <= -1 * stop_loss) or
+                                            (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 30)) \
                 and self.submitted == 0:
-
             # conditions to sell puts to stop loss
 
-            tickers_signal = "sell put"
+            print("sell put")
             sell_index.append(1)
+            return buy_index, sell_index, take_profit
 
 
-        elif ((self.stock_owned[0] > 0) and (((df["bar_num"].iloc[i - 1] < 2) and not (df["bar_num"].iloc[i - 1] == -1 and
-            df["bar_num"].iloc[i - 2] == -1 and df["bar_num"].iloc[i - 3] == -1 and df["bar_num"].iloc[i - 4] == -1)) or
-            (self.max_call_price / self.call_cost) > 1.10 and not df["obv_slope"].iloc[i - 1] > 25) \
-            and self.submitted == 0) and ((self.call_option_price.bid - 0.5) >= 0.25 + (self.call_cost)):
+        elif ((self.stock_owned[0] > 0) and (
+                ((df["bar_num"].iloc[i - 1] < 2) and not (df["bar_num"].iloc[i - 1] == -1 and
+                                                          df["bar_num"].iloc[i - 3] == -1)) or
+                (self.call_option_price.bid / self.call_cost) > 1.10 and not df["obv_slope"].iloc[i - 1] > 25)
+              and self.submitted == 0) and ((self.call_option_price.bid - 0.5) >= 0.25 + self.call_cost):
 
             # conditions to sell calls to stop loss
-            tickers_signal = "take profits call"
+            print("take profits call")
             take_profit.append(0)
+            return buy_index, sell_index, take_profit
 
-        elif ((self.stock_owned[1] > 0) and (((df["bar_num"].iloc[i - 1] > -2) and not (df["bar_num"].iloc[i - 1] == 1 and
-            df["bar_num"].iloc[i - 2] == 1 and df["bar_num"].iloc[i - 3] == 1 and df["bar_num"].iloc[i - 4] == 1)) or
-            (self.max_put_price / self.put_cost) > 1.10 and not df["obv_slope"].iloc[i - 1] < -25) and \
-                self.submitted == 0) and ((self.put_option_price.bid - 0.5) >= 0.5 + (self.put_cost)):
+        elif ((self.stock_owned[1] > 0) and (
+                ((df["bar_num"].iloc[i - 1] > -2) and not (df["bar_num"].iloc[i - 1] == 1 and
+                                                           df["bar_num"].iloc[i - 3] == 1)) or
+                (self.put_option_price.bid / self.put_cost) > 1.10 and not df["obv_slope"].iloc[i - 1] < -25) and
+              self.submitted == 0) and ((self.put_option_price.bid - 0.5) >= 0.5 + self.put_cost):
 
             # conditions to sell calls to take profits
-            tickers_signal = "take profits puts"
+            print("take profits puts")
             take_profit.append(1)
-
-
+            return buy_index, sell_index, take_profit
 
         else:
-            tickers_signal = "Hold"
-            sell_index = []
-            buy_index = []
-            take_profit = []
-
-        print(f'stocks owning = {self.stock_owned}')
-        print(tickers_signal)
-        print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
-
-        return buy_index, sell_index, take_profit
+            print("Hold")
+            return buy_index, sell_index, take_profit
 
     def error(self, reqId=None, errorCode=None, errorString=None, contract=None):  # error handler
         print(errorCode, errorString)
@@ -436,15 +443,12 @@ class Trade:
             if is_time_between(time(15, 00),
                                time(15, 15)) or each.contract.right != contract.right or price.bid < 1.25 or len(
                 ib.reqAllOpenOrders()) > 0 or abs(price.bidGreeks.optPrice) - price.bid > 10:
-                self.option_position()
+                self.stock_owned = np.zeros(2)
                 return
             ib.qualifyContracts(each.contract)
-            if each.position > 0:  # Number of active Long portfolio
-                action = 'SELL'  # to offset the long portfolio
-            elif each.position < 0:  # Number of active Short portfolio
-                action = 'BUY'  # to offset the short portfolio
-            else:
-                assert False
+
+            action = 'SELL'  # to offset the long portfolio
+
             totalQuantity = abs(each.position)  # check holding quantity
 
             print(f'price = {price.bid + 0.25}')
@@ -458,11 +462,10 @@ class Trade:
                 self.submitted = 0
             else:
                 self.submitted = 0
-                self.stock_owned = np.zeros(2)
                 self.ATR = self.original_ATR
 
             print(trade.orderStatus.status)
-        self.option_position()
+
         return
 
     def take_profit(self, contract, price):  # start taking profit
@@ -482,12 +485,9 @@ class Trade:
                 self.submitted = 0
                 return
             ib.qualifyContracts(each.contract)
-            if each.position > 0:  # Number of active Long portfolio
-                action = 'SELL'  # to offset the long portfolio
-            elif each.position < 0:  # Number of active Short portfolio
-                action = 'BUY'  # to offset the short portfolio
-            else:
-                assert False
+
+            action = 'SELL'  # to offset the long portfolio
+
             totalQuantity = abs(each.position)
 
             print(f'price = {price.bid}')
@@ -500,17 +500,16 @@ class Trade:
                 ib.cancelOrder(order)
                 self.submitted = 0
             else:
-                self.stock_owned = np.zeros(2)
-
                 self.submitted = 0
+                self.stock_owned = np.zeros(2)
             print(trade.orderStatus.status)
-        self.option_position()
+
         return
 
     def open_position(self, contract, quantity, price):  # start position
         if len(ib.reqAllOpenOrders()) > 0:
-            self.option_position()
             return
+        quantity = 1
         order = LimitOrder('BUY', quantity,
                            price.ask)  # round(25 * round(price[i]/25, 2), 2))
         trade = ib.placeOrder(contract, order)
@@ -519,24 +518,17 @@ class Trade:
         if not trade.orderStatus.status == "Filled":
             ib.cancelOrder(order)
             self.submitted = 0
-            self.option_position()
         else:
-
+            self.stock_owned = np.array([quantity, 0]) if contract.right == "C" else np.array([0, quantity])
             self.submitted = 0
 
         self.submitted = 0
         print(trade.orderStatus.status)
         self.block_buying = 0
-        self.option_position()
         self.ATR = self.original_ATR
         return
 
-    # def positions(self,contract):
-    #     self.stock_owned = np.zeros(2)
-    #     self.portfolio = ib.portfolio()
-
     def option_position(self, event=None):
-        self.stock_owned = np.zeros(2)
         position = ib.portfolio()
         call_position = None
         put_position = None
@@ -620,6 +612,10 @@ class Trade:
                 self.submitted = 0
         if not self.unrealizedPNL == 0 and not self.stock_owned.any() > 0:
             self.option_position()
+        if (self.portfolio_value != 0 and self.stock_owned[0] == 0 and self.stock_owned[1] == 0) or (
+                self.stock_owned[0] != 0 or self.stock_owned[1] != 0 and self.portfolio_value == 0):
+            self.option_position()
+            self.submitted = 0
 
 
 def is_time_between(begin_time, end_time, check_time=None):
