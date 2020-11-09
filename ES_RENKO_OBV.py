@@ -216,8 +216,8 @@ class Trade:
                                                      self.call_option_price.bidSize)  # update call options volume
         self.put_option_volume = self.roll_contract(self.put_option_volume,
                                                     self.put_option_price.bidSize)  # update put options volume
-        self.call_option_price_average = self.roll_contract(self.call_option_price_average, self.call_option_price)
-        self.put_option_price_average = self.roll_contract(self.put_option_price_average, self.put_option_price)
+        self.call_option_price_average = self.roll_contract(self.call_option_price_average, self.call_option_price.bid)
+        self.put_option_price_average = self.roll_contract(self.put_option_price_average, self.put_option_price.bid)
 
         self.data_raw = res.ES(self.ES, self.ATR)
 
@@ -270,7 +270,6 @@ class Trade:
                     contract = self.call_contract if i == 0 else self.put_contract
                     ib.qualifyContracts(contract)
                     price = ib.reqMktData(contract, '', False, False, None)
-
                     self.take_profit(contract, price)
 
 
@@ -539,35 +538,55 @@ class Trade:
     def option_position(self, event=None):
         self.stock_owned = np.zeros(2)
         position = ib.portfolio()
-        self.portfolio = position
         call_position = None
         put_position = None
+        if len(position) == 0:
+            self.portfolio = position
+            self.call_cost = -1
+            self.put_cost = -1
 
-        for each in position:
-            if each.contract.right == 'C':
-                call_position = each.contract
-                ib.qualifyContracts(call_position)
-                self.stock_owned[0] = each.position
-                self.call_cost = 0.25 * round(each.averageCost / 50 / 0.25)
-            elif each.contract.right == 'P':
-                put_position = each.contract
-                ib.qualifyContracts(put_position)
-                self.stock_owned[1] = each.position
-                self.put_cost = 0.25 * round(each.averageCost / 50 / 0.25)
+            self.call_contract = res.get_contract('C', 2000)
+            ib.qualifyContracts(self.call_contract)
 
-        self.call_cost = self.call_cost if self.call_cost > 0 else -1
-        self.put_cost = self.put_cost if self.put_cost > 0 else -1
+            self.put_contract = res.get_contract('P', 2000)
+            ib.qualifyContracts(self.put_contract)
 
-        self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
-        ib.qualifyContracts(self.call_contract)
+            self.call_option_price = ib.reqMktData(self.call_contract, '', False,
+                                                   False)  # start data collection for calls
+            self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
+            ib.sleep(1)
+            return
+        else:
+            if self.portfolio != position:
+                for each in position:
+                    if each.contract.right == 'C':
+                        call_position = each.contract
+                        ib.qualifyContracts(call_position)
+                        self.stock_owned[0] = each.position
+                        self.call_cost = 0.25 * round(each.averageCost / 50 / 0.25)
+                    elif each.contract.right == 'P':
+                        put_position = each.contract
+                        ib.qualifyContracts(put_position)
+                        self.stock_owned[1] = each.position
+                        self.put_cost = 0.25 * round(each.averageCost / 50 / 0.25)
 
-        self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
-        ib.qualifyContracts(self.put_contract)
+                self.call_cost = self.call_cost if self.call_cost > 0 else -1
+                self.put_cost = self.put_cost if self.put_cost > 0 else -1
 
-        self.call_option_price = ib.reqMktData(self.call_contract, '', False,
-                                               False)  # start data collection for calls
-        self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
-        return
+                self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
+                ib.qualifyContracts(self.call_contract)
+
+                self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
+                ib.qualifyContracts(self.put_contract)
+
+                self.call_option_price = ib.reqMktData(self.call_contract, '', False,
+                                                       False)  # start data collection for calls
+                self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
+                self.portfolio = position
+                return
+            else:
+                self.portfolio = position
+                return
 
     @staticmethod
     def connect():
