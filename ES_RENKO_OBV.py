@@ -129,8 +129,8 @@ class get_data:
         # ES_df['MA_9'] = ta.MA(ES_df['close'], timeperiod=9)
         # ES_df['MA_21'] = ta.MA(ES_df['close'], timeperiod=21)
         # ES_df['MA_200'] = ta.MA(ES_df['close'], timeperiod=200)
-        # ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
-        # ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=21)
+        ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
+        ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=26)
         # ES_df['derv_1'] = np.gradient(ES_df['EMA_9'])
         # ES_df['EMA_9_26']=df['EMA_9']/df['EMA_26']
         # ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
@@ -141,7 +141,7 @@ class get_data:
         # ES_df['Mean_ATR'] = (ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], 21)).mean()
         # ES_df['roll_max_vol'] = ES_df['volume'].rolling(int(50 / self.trading.ATR_factor)).max()
         # ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
-        # ES_df['EMA_9-EMA_26'] = ES_df['EMA_9'] - ES_df['EMA_26']
+        ES_df['EMA_9-EMA_26'] = ES_df['EMA_9'] - ES_df['EMA_26']
         # ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
         # ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
         ES_df.dropna(inplace=True)
@@ -160,6 +160,7 @@ class Trade:
         self.skip = False
         self.call_cost = -1
         self.put_cost = -1
+        self.portfolio = []
         self.connect()
         ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX', currency='USD')  # define
         # ES-Mini futures contract
@@ -207,6 +208,7 @@ class Trade:
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
         self.ATR_minimum = self.ATR / 2
         self.ATR_decrement = 0.005
+
         self.call_option_price_average = self.roll_contract(self.call_option_price_average, self.call_option_price.bid)
         self.put_option_price_average = self.roll_contract(self.put_option_price_average, self.put_option_price.bid)
         ib.reqGlobalCancel()  # Making sure all orders for buying selling are canceled before starting trading
@@ -229,7 +231,7 @@ class Trade:
             return
         # print(self.data_raw)
         df = self.data_raw[
-            ['date', 'high', 'low', 'close', 'bar_num', 'obv_slope', 'ATR', 'RSI', 'roll_max_cp', 'roll_min_cp']].tail(
+            ['date', 'high', 'low', 'close', 'bar_num', 'obv_slope', 'ATR', 'RSI', 'EMA_9-EMA_26', 'roll_max_cp', 'roll_min_cp']].tail(
             20)  # filter data
 
         if self.stock_owned.any() > 0 and not np.isnan(self.max_call_price) and not np.isnan(
@@ -246,9 +248,11 @@ class Trade:
         if self.stock_owned[0] > 0:
             print(f'Call cost was = {self.call_cost}')
             print((self.call_option_price_average.mean() - self.call_cost))
+            print(self.call_contract)
         elif self.stock_owned[1] > 0:
             print(f'Put cost was = {self.put_cost}')
             print((self.put_option_price_average.mean() - self.put_cost))
+            print(self.put_contract)
         buy_index, sell_index, take_profit = self.strategy(df)  # set initial buy index to None
         print(f'stocks owning = {self.stock_owned}')
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
@@ -265,7 +269,9 @@ class Trade:
 
                     self.flatten_position(contract, price)
             self.submitted = 0
+            ib.sleep(1)
             self.option_position()
+
 
         elif take_profit:  # start selling to take profit
             for i in take_profit:
@@ -280,6 +286,7 @@ class Trade:
                     price = ib.reqMktData(contract, '', False, False, None)
                     self.take_profit(contract, price)
             self.submitted = 0
+            ib.sleep(3)
             self.option_position()
 
         elif buy_index:  # start buying to start trade
@@ -297,6 +304,7 @@ class Trade:
                     self.block_buying = 1
                     self.open_position(contract=contract, quantity=quantity, price=price)
             self.submitted = 0
+            ib.sleep(3)
             self.option_position()
 
     def strategy(self, df):
@@ -323,7 +331,6 @@ class Trade:
         stop_loss = 1 + 1.75 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
         self.ATR_factor = 0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
         # print(df.iloc[-5:])
-
         print(
             f'cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
             f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
@@ -338,7 +345,7 @@ class Trade:
         if self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] >= 2 and \
                 df["obv_slope"].iloc[i - 1] > 25 and (
                 not (df["roll_max_cp"].iloc[i - 2] - 0.5 < df["close"].iloc[i - 1])) and \
-                df['RSI'].iloc[-2] < 85 and buy_index == [] and self.submitted == 0:
+                df['RSI'].iloc[-2] < 85 and df['EMA_9-EMA_26'].iloc[i-1] > 0 and buy_index == [] and self.submitted == 0:
             print("Buy call")
             buy_index.append(0)
             return buy_index, sell_index, take_profit
@@ -346,7 +353,7 @@ class Trade:
         elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] <= -2 and \
                 df["obv_slope"].iloc[i - 1] < -25 and (
                 not (df["close"].iloc[i - 1] <= df["roll_min_cp"].iloc[i - 2] + 0.5)) and \
-                df['RSI'].iloc[i - 2] > 25 and buy_index == [] and self.submitted == 0:
+                df['RSI'].iloc[i - 2] > 25 and df['EMA_9-EMA_26'].iloc[i-1] < 0 and buy_index == [] and self.submitted == 0:
             print("Buy put")
             buy_index.append(1)
             return buy_index, sell_index, take_profit
@@ -550,6 +557,7 @@ class Trade:
             return
         else:
             if self.portfolio != position:
+                self.portfolio = position
                 for each in position:
                     if each.contract.right == 'C':
                         call_position = each.contract
@@ -574,7 +582,7 @@ class Trade:
                 self.call_option_price = ib.reqMktData(self.call_contract, '', False,
                                                        False)  # start data collection for calls
                 self.put_option_price = ib.reqMktData(self.put_contract, '', False, False)  # start data collection for puts
-                self.portfolio = position
+
                 return
             else:
                 self.portfolio = position
