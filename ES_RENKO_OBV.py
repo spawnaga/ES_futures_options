@@ -136,14 +136,14 @@ class get_data:
         # ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
         # ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
         ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], timeperiod=20)
-        ES_df['roll_max_cp'] = ES_df['high'].rolling(int(50 / self.trading.ATR_factor)).max()
-        ES_df['roll_min_cp'] = ES_df['low'].rolling(int(50 / self.trading.ATR_factor)).min()
+        ES_df['roll_max_cp'] = ES_df['high'].rolling(20).max()
+        ES_df['roll_min_cp'] = ES_df['low'].rolling(20).min()
         # ES_df['Mean_ATR'] = (ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], 21)).mean()
-        # ES_df['roll_max_vol'] = ES_df['volume'].rolling(int(50 / self.trading.ATR_factor)).max()
+        ES_df['roll_max_vol'] = ES_df['volume'].rolling(20).max()
         # ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
         ES_df['EMA_9-EMA_26'] = ES_df['EMA_9'] - ES_df['EMA_26']
-        # ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
-        # ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
+        # ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']1
+        ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], timeperiod = 6, nbdevup=1, nbdevdn=1, matype=MA_Type.T3)
         ES_df.dropna(inplace=True)
         ES_df = renko_df(ES_df, ATR)
         return ES_df
@@ -237,8 +237,8 @@ class Trade:
         if self.data_raw.iloc[-1, 1] == 0:
             return
         df = self.data_raw[
-            ['date', 'high', 'low', 'close', 'bar_num', 'obv_slope', 'ATR', 'RSI', 'EMA_9-EMA_26', 'roll_max_cp',
-             'roll_min_cp']].tail(
+            ['date', 'high', 'low', 'close', 'volume', 'bar_num', 'obv_slope', 'ATR', 'RSI', 'EMA_9-EMA_26', 'roll_max_cp',
+             'roll_min_cp', 'B_upper', 'B_middle', 'B_lower', 'roll_max_vol']].tail(
             20)  # filter data
 
         if self.stock_owned.any() > 0 and not np.isnan(self.max_call_price) and not np.isnan(
@@ -297,13 +297,14 @@ class Trade:
         elif not len(buy_index) == 0:  # start buying to start trade
 
             for i in buy_index:
-                contract = self.call_contract if i == 0 else self.put_contract
+                contract = res.get_contract('C', 2000) if i == 0 else res.get_contract('P', 2000)
                 ib.qualifyContracts(contract)
 
                 if self.cash_in_hand > (self.options_price[i] * 50) and self.cash_in_hand > self.portfolio_value \
                         and (self.stock_owned[0] < 1 or self.stock_owned[1] < 1) and len(
                     self.portfolio) == 0:
-                    price = self.call_option_price if i == 0 else self.put_option_price
+                    price = ib.reqMktData(contract, '', False, False)
+                    ib.sleep(1)
                     quantity = int((self.cash_in_hand / (self.options_price[i] * 50))) - 1 if \
                         int((self.cash_in_hand / (self.options_price[i] * 50))) > 1 else 1
                     self.block_buying = 1
@@ -346,7 +347,13 @@ class Trade:
             f'{self.call_option_price.bid} and max put price = {self.max_put_price} compared to '
             f'{self.put_option_price.bid}'
             f'and ATR = {self.ATR} and ATR minimum = {self.ATR_minimum} and stop_loss = {stop_loss} and self.put_option_price.bid = '
-            f'{self.put_option_price.bid} and EMA_9 - EMA_26 DIFF = {df["EMA_9-EMA_26"].iloc[i - 1]} and RSI = {df["RSI"].iloc[i - 2]} and slop[-1] ={df["obv_slope"].iloc[-2]} and self.submitted = {self.submitted}')
+            f'{self.put_option_price.bid} and EMA_9 - EMA_26 DIFF = {df["EMA_9-EMA_26"].iloc[i - 1]} and '
+            f'RSI = {df["RSI"].iloc[i - 2]} and slop[-1] ={df["obv_slope"].iloc[-2]} and '
+            f'self.submitted = {self.submitted} and upper BBand = {df["B_upper"].iloc[i-1]} and'
+            f' lower BBand = {df["B_lower"].iloc[i-1]} and '
+            f'df["roll_max_cp"] = {df["roll_max_cp"].iloc[i-1]} and df["roll_min_cp"] = {df["roll_min_cp"].iloc[i-1]}'
+            f' and df["roll_max_vol"].iloc[i-1] = {df["roll_max_vol"].iloc[i-1]} and df["volume"] = {df["volume"].iloc[i-1]}')
+
         if (self.portfolio_value != 0 and self.stock_owned[0] == 0 and self.stock_owned[1] == 0) or (
                 self.stock_owned[0] != 0 or self.stock_owned[1] != 0 and self.portfolio_value == 0):
             self.option_position()
@@ -357,9 +364,12 @@ class Trade:
             print('glitch or slippage in option prices, cancel check')
             return buy_index, sell_index, take_profit
 
-        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] >= 2 and \
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] > 2 and \
                 df["obv_slope"].iloc[i - 1] > 25 and (
-                not (df["roll_max_cp"].iloc[i - 2] - 0.5 < df["close"].iloc[i - 1])) and \
+                (df["roll_max_cp"].iloc[i - 2] - 0.5 < df["close"].iloc[i - 1] < df['close'].iloc[i])) and \
+                ((df['B_upper'].iloc[i-1] > df['close'].iloc[i-1]) or
+                 (df['close'].iloc[i-1] >= df['roll_max_cp'].iloc[i-1] and
+                  df['roll_max_vol'].iloc[i-1] <= df['volume'].iloc[i-1])) and \
                 df['RSI'].iloc[-2] < 90 and df['EMA_9-EMA_26'].iloc[
             i - 1] > 0 and buy_index == [] and self.submitted == 0:
             print("Buy call")
@@ -367,9 +377,12 @@ class Trade:
             self.submitted = 1
             return buy_index, sell_index, take_profit
 
-        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] <= -2 and \
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] < -2 and \
                 df["obv_slope"].iloc[i - 1] < -25 and (
-                not (df["close"].iloc[i - 1] <= df["roll_min_cp"].iloc[i - 2] + 0.5)) and \
+                (df['close'].iloc[i] < df["close"].iloc[i - 1] < df["roll_min_cp"].iloc[i - 2] + 0.5)) and \
+                ((df['B_lower'].iloc[i-1] <= df['close'].iloc[i-1]) or
+                 (df['close'].iloc[i-1] <= df['roll_min_cp'].iloc[i-1] and
+                  df['roll_max_vol'].iloc[i-1] <= df['volume'].iloc[i-1])) and \
                 df['RSI'].iloc[i - 2] > 10 and df['EMA_9-EMA_26'].iloc[
             i - 1] < 0 and buy_index == [] and self.submitted == 0:
             print("Buy put")
@@ -495,7 +508,7 @@ class Trade:
                       f'1- time Now is between 14:00 to 14:15 '
                       f'2- contract is not right'
                       f'3- contract price slippage (contract price dropped under its normal/real value)')
-
+                self.option_position()
                 return
             ib.qualifyContracts(each.contract)
 
@@ -560,9 +573,10 @@ class Trade:
         return
 
     def open_position(self, contract, quantity, price):  # start position
-        if len(ib.reqAllOpenOrders()) > 0:
+        if len(ib.reqAllOpenOrders()) > 0 or is_time_between(time(14, 00), time(15, 00)):
+            print('Rejected to buy, either because the time of trade or there is another order')
             return
-        quantity = quantity
+        quantity = quantity if quantity < 4 else 3
         order = LimitOrder('BUY', quantity,
                            price.ask)  # round(25 * round(price[i]/25, 2), 2))
         trade = ib.placeOrder(contract, order)
@@ -609,22 +623,24 @@ class Trade:
                 for each in position:
                     if each.contract.right == 'C':
                         call_position = each.contract
+                        put_position = None
                         ib.qualifyContracts(call_position)
                         self.stock_owned[0] = each.position
                         self.call_cost = 0.25 * round(each.averageCost / 50 / 0.25)
                     elif each.contract.right == 'P':
                         put_position = each.contract
+                        call_position = None
                         ib.qualifyContracts(put_position)
                         self.stock_owned[1] = each.position
                         self.put_cost = 0.25 * round(each.averageCost / 50 / 0.25)
 
-                self.call_cost = self.call_cost if self.call_cost > 0 else -1
-                self.put_cost = self.put_cost if self.put_cost > 0 else -1
+                self.call_cost = self.call_cost if not isinstance(call_position, type(None)) else -1
+                self.put_cost = self.put_cost if not isinstance(put_position, type(None)) else -1
 
-                self.call_contract = call_position if not pd.isna(call_position) else res.get_contract('C', 2000)
+                self.call_contract = call_position if not isinstance(call_position, type(None)) else res.get_contract('C', 2000)
                 ib.qualifyContracts(self.call_contract)
 
-                self.put_contract = put_position if not pd.isna(put_position) else res.get_contract('P', 2000)
+                self.put_contract = put_position if not isinstance(put_position, type(None)) else res.get_contract('P', 2000)
                 ib.qualifyContracts(self.put_contract)
 
                 self.call_option_price = ib.reqMktData(self.call_contract, '', False,
@@ -670,7 +686,7 @@ class Trade:
 
         if (self.portfolio_value != 0 and self.stock_owned[0] == 0 and self.stock_owned[1] == 0) or (
                 self.stock_owned[0] != 0 or self.stock_owned[1] != 0 and self.portfolio_value == 0):
-            self.option_position()
+            # self.option_position()
             self.submitted = 0
 
 
