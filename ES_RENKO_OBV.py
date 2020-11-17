@@ -266,17 +266,43 @@ class Trade:
         print(f'stocks owning = {self.stock_owned}')
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         if not len(sell_index) == 0:  # start selling to stop loss
-            for i in sell_index:
-                # self.stock_owned[i] = 0
+            self.submitted = 1
+            if not len(buy_index) == 0:
+                for i in sell_index:
+                    # self.stock_owned[i] = 0
 
-                if len(self.portfolio) > 0:
-                    contract = self.call_contract if i == 0 else self.put_contract
+                    if len(self.portfolio) > 0:
+                        contract = self.call_contract if i == 0 else self.put_contract
+                        ib.qualifyContracts(contract)
+                        price = ib.reqMktData(contract, '', False, False, None)
+                        self.flatten_position(contract, price)
+                self.submitted = 0
+
+                # self.option_position()
+            else:
+                for i in sell_index:
+                    # self.stock_owned[i] = 0
+
+                    if len(self.portfolio) > 0:
+                        contract = self.call_contract if i == 0 else self.put_contract
+                        ib.qualifyContracts(contract)
+                        price = ib.reqMktData(contract, '', False, False, None)
+                        self.flatten_position(contract, price)
+                for i in buy_index:
+                    contract = res.get_contract('C', 2000) if i == 0 else res.get_contract('P', 2000)
                     ib.qualifyContracts(contract)
-                    price = ib.reqMktData(contract, '', False, False, None)
-                    self.flatten_position(contract, price)
-            self.submitted = 0
 
-            # self.option_position()
+                    if self.cash_in_hand > (self.options_price[i] * 50) and self.cash_in_hand > self.portfolio_value \
+                            and (self.stock_owned[0] < 1 or self.stock_owned[1] < 1) and len(
+                        self.portfolio) == 0:
+                        price = ib.reqMktData(contract, '', False, False)
+                        ib.sleep(1)
+                        quantity = int((self.cash_in_hand / (self.options_price[i] * 50))) - 1 if \
+                            int((self.cash_in_hand / (self.options_price[i] * 50))) > 1 else 1
+                        self.block_buying = 1
+                        self.open_position(contract=contract, quantity=quantity, price=price)
+                self.submitted = 0
+
 
 
         elif not len(take_profit) == 0:  # start selling to take profit
@@ -319,15 +345,23 @@ class Trade:
 
             Opening positions if:
                 - Buying ES Calls options when ES breaks the resistance in the last 20 ticks
+                - Buying ES Calls options if ES made 2 positive renkos bars while RSI is less than 90, EMA 9 > EMA 26,
+                volume is more than 1/2 Max Volume of the last 20 candles and, ES price is less than the upper 1st Standard
+                deviation of Bolinger Bands.
+
                 - Buying ES Puts options when ES breaks the support in the last 20 ticks
+                - Buying ES puts options if ES made 2 negative renkos bars while RSI is more than 20, EMA 9 < EMA 26,
+                volume is more than 1/2 Max Volume of the last 20 candles and, ES price is more than the lower 1st Standard
+                deviation of Bolinger Bands.
+
 
             Closing positions if:
 
                 - ES trend reverses
                 - ES's ATR is more than 1.25 in the opposite direction
                 - Option price is less losing more than 1.25 * 0.5 * ATR from the cost price
-                - Option price made 20% profits
-                - Option volume reduce to 1 / 8 in the next tick
+                - Option price made 10% profits and obv volum indicators reverses to the other side
+
         """
 
         buy_index = []  # set initial buy index to None
@@ -418,16 +452,19 @@ class Trade:
             buy_index.append(1)
             return buy_index, sell_index, take_profit
 
-        elif (self.stock_owned[0] > 0) and (df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and
+        elif (self.stock_owned[0] > 0 and self.stock_owned[1] == 0) \
+                and (df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and
                                             df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) and \
                 self.stock_owned[1] == 0 and self.block_buying == 0 and self.submitted == 0:
             # conditions to sell calls and buy puts if trend reversed
             print("sell call and buy puts")
             sell_index.append(0)
             buy_index.append(1)
+
             return buy_index, sell_index, take_profit
 
-        elif (self.stock_owned[1] > 0) and (df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and
+        elif (self.stock_owned[1] > 0 and self.stock_owned[0] == 0) and \
+                (df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and
                                             df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) \
                 and self.stock_owned[0] == 0 and self.block_buying == 0 and self.submitted == 0:
             # conditions to buy calls and sell puts if trend reversed
