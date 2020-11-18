@@ -266,8 +266,8 @@ class Trade:
         print(f'stocks owning = {self.stock_owned}')
         print('$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$')
         if not len(sell_index) == 0:  # start selling to stop loss
-            self.submitted = 1
-            if not len(buy_index) == 0:
+
+            if len(buy_index) == 0:
                 for i in sell_index:
                     # self.stock_owned[i] = 0
 
@@ -288,6 +288,7 @@ class Trade:
                         ib.qualifyContracts(contract)
                         price = ib.reqMktData(contract, '', False, False, None)
                         self.flatten_position(contract, price)
+                ib.sleep(0)
                 for i in buy_index:
                     contract = res.get_contract('C', 2000) if i == 0 else res.get_contract('P', 2000)
                     ib.qualifyContracts(contract)
@@ -414,7 +415,7 @@ class Trade:
             print('glitch or slippage in option prices, cancel check')
             return buy_index, sell_index, take_profit
 
-        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] > 1 and \
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] > 2 and \
                 df["obv_slope"].iloc[i - 1] > 25 and \
                 (df['B_upper'].iloc[i-1] + 0.5 > df['close'].iloc[i-1]) and \
                 df['RSI'].iloc[-2] < 90 and df['EMA_9-EMA_26'].iloc[
@@ -424,7 +425,7 @@ class Trade:
             self.submitted = 1
             return buy_index, sell_index, take_profit
 
-        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] < -1 and \
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] < -2 and \
                 df["obv_slope"].iloc[i - 1] < -25 and \
                 (df['B_lower'].iloc[i-1] - 0.5 <= df['close'].iloc[i-1]) and \
                 df['RSI'].iloc[i - 2] > 10 and df['EMA_9-EMA_26'].iloc[
@@ -437,19 +438,20 @@ class Trade:
         elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
                 df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
                 df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
-                and df["RSI"].iloc[i] < 80 and buy_index == [] and self.submitted == 0:
+                and buy_index == [] and self.submitted == 0:
             #  conditions to buy calls
             print("Buy call")
             buy_index.append(0)
+            self.submitted = 1
             return buy_index, sell_index, take_profit
 
         elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
             df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
             df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
-            and df["RSI"].iloc[i] > 20 and \
-            buy_index == [] and self.submitted == 0:
+            and buy_index == [] and self.submitted == 0:
             print("Buy put")
             buy_index.append(1)
+            self.submitted = 1
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[0] > 0 and self.stock_owned[1] == 0) \
@@ -457,6 +459,7 @@ class Trade:
                                             df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) and \
                 self.stock_owned[1] == 0 and self.block_buying == 0 and self.submitted == 0:
             # conditions to sell calls and buy puts if trend reversed
+            self.submitted = 1
             print("sell call and buy puts")
             sell_index.append(0)
             buy_index.append(1)
@@ -468,6 +471,7 @@ class Trade:
                                             df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) \
                 and self.stock_owned[0] == 0 and self.block_buying == 0 and self.submitted == 0:
             # conditions to buy calls and sell puts if trend reversed
+            self.submitted = 1
             print("sell put and buy calls")
             sell_index.append(1)
             buy_index.append(0)
@@ -499,7 +503,7 @@ class Trade:
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[0] > 0) and (self.call_option_price.bid - self.call_cost >= 1) and (df["obv_slope"].iloc[i] < 30) \
-                and not (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and self.submitted == 0:
+                and ((not (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25)) or (df['RSI'].iloc[i] >= 90)) and self.submitted == 0:
 
             print("take profits call")
             self.submitted = 1
@@ -507,7 +511,7 @@ class Trade:
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[1] > 0) and (self.put_option_price.bid - self.put_cost >= 1) and (df["obv_slope"].iloc[i] > -30) \
-                and not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and self.submitted == 0:
+                and ((not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25)) or (df['RSI'].iloc[i] <= 10)) and self.submitted == 0:
 
             print("take profits puts")
             self.submitted = 1
@@ -565,7 +569,7 @@ class Trade:
                     ib.reqAllOpenOrders()) > 0 or not isinstance(price, Ticker) or (np.isnan(price.modelGreeks.optPrice)) or \
                         price.modelGreeks.optPrice > price.bid:
                     print(f'Order to sell was rejected because of one of the following reasons:'
-                          f'1- time Now is between 14:00 to 14:15 '
+                          f'1- time Now is between 17:00 to 17:15 '
                           f'2- contract is not right'
                           f'3- contract price slippage (contract price dropped under its normal/real value)')
                     self.option_position()
@@ -638,7 +642,7 @@ class Trade:
         return
 
     def open_position(self, contract, quantity, price):  # start position
-        if len(ib.reqAllOpenOrders()) > 0 or is_time_between(time(15, 00), time(17, 00)):
+        if len(ib.reqAllOpenOrders()) > 0 or is_time_between(time(15, 00), time(17, 15)):
             print('Rejected to buy, either because the time of trade or there is another order')
             return
         quantity = quantity if quantity < 4 else 3
