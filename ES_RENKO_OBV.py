@@ -418,7 +418,7 @@ class Trade:
 
         elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] > 2 and \
                 df["obv_slope"].iloc[i - 1] > 25 and \
-                (df['B_upper'].iloc[i - 1] + 0.5 > df['close'].iloc[i - 1]) and \
+                (df['B_upper'].iloc[i - 1] + 0.25 > df['close'].iloc[i - 1]) and \
                 df['RSI'].iloc[-2] < 90 and df['EMA_9-EMA_26'].iloc[
             i - 1] > 0 and buy_index == [] and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
             i - 1] and self.submitted == 0:
@@ -429,7 +429,7 @@ class Trade:
 
         elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["bar_num"].iloc[i - 1] < -2 and \
                 df["obv_slope"].iloc[i - 1] < -25 and \
-                (df['B_lower'].iloc[i - 1] - 0.5 <= df['close'].iloc[i - 1]) and \
+                (df['B_lower'].iloc[i - 1] - 0.25 <= df['close'].iloc[i - 1]) and \
                 df['RSI'].iloc[i - 2] > 10 and df['EMA_9-EMA_26'].iloc[
             i - 1] < 0 and buy_index == [] and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
             i - 1] and self.submitted == 0:
@@ -645,7 +645,7 @@ class Trade:
         return
 
     def open_position(self, contract, quantity, price):  # start position
-        if len(ib.reqAllOpenOrders()) > 0 or is_time_between(time(15, 00), time(17, 15)) or self.realizedPNL >= 200:
+        if len(ib.position()) > 0 or len(ib.reqAllOpenOrders()) > 0 or is_time_between(time(15, 00), time(17, 15)) or self.realizedPNL <= -200:
             print('Rejected to buy, either because the time of trade or there is another order or current loss >= 200')
             return
         quantity = 1 #quantity if quantity < 4 else 3
