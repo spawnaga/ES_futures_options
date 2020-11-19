@@ -409,7 +409,7 @@ class Trade:
         elif self.barnumb_lock is False and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
                 df["bar_num"].iloc[i - 1] > 2 and \
                 df["obv_slope"].iloc[i - 1] > 25 and \
-                (df['B_upper'].iloc[i - 1] + 0.25 > df['close'].iloc[i - 1]) and \
+                (df['B_upper'].iloc[i - 1] + 0.5 > df['close'].iloc[i - 1]) and \
                 df['RSI'].iloc[-2] < 90 and df['EMA_9-EMA_26'].iloc[
             i - 1] > 0 and buy_index == [] and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
             i - 1] and self.submitted == 0:
@@ -421,7 +421,7 @@ class Trade:
         elif self.barnumb_lock is False and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
                 df["bar_num"].iloc[i - 1] < -2 and \
                 df["obv_slope"].iloc[i - 1] < -25 and \
-                (df['B_lower'].iloc[i - 1] - 0.25 <= df['close'].iloc[i - 1]) and \
+                (df['B_lower'].iloc[i - 1] - 0.5 <= df['close'].iloc[i - 1]) and \
                 df['RSI'].iloc[i - 2] > 10 and df['EMA_9-EMA_26'].iloc[
             i - 1] < 0 and buy_index == [] and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
             i - 1] and self.submitted == 0:
@@ -437,6 +437,7 @@ class Trade:
             #  conditions to buy calls
             print("Buy call")
             buy_index.append(0)
+            self.submited = 1
             return buy_index, sell_index, take_profit
 
         elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
@@ -446,6 +447,7 @@ class Trade:
                 buy_index == [] and self.submitted == 0:
             print("Buy put")
             buy_index.append(1)
+            self.submitted = 1
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[0] > 0 and self.stock_owned[1] == 0) \
@@ -456,6 +458,7 @@ class Trade:
             print("sell call and buy puts")
             sell_index.append(0)
             buy_index.append(1)
+            self.submitted =1
 
             return buy_index, sell_index, take_profit
 
@@ -467,6 +470,7 @@ class Trade:
             print("sell put and buy calls")
             sell_index.append(1)
             buy_index.append(0)
+            self.submitted = 1
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
@@ -648,8 +652,7 @@ class Trade:
         return
 
     def open_position(self, contract, quantity, price):  # start position
-        if len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0 or is_time_between(time(15, 00), time(17,
-                                                                                                           15)) or self.realizedPNL <= -200:
+        if len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0:
             print('Rejected to buy, either because the time of trade or there is another order or current loss >= 200')
             self.submitted = 0
             return
@@ -748,13 +751,14 @@ class Trade:
     def account_update(self, value=None):
 
         self.update += 1
-        self.cash_in_hand = float(value.value) if (
-                    value.account == 'U2809143' and value.tag == 'TotalCashValue') else self.cash_in_hand
+        self.cash_in_hand = float(value.value) if value.tag == 'TotalCashValue' else self.cash_in_hand
 
-        self.portfolio_value = float(value.value) if (
-                    value.account == 'U2809143' and value.tag == 'GrossPositionValue') else self.portfolio_value
-        self.unrealizedPNL = float(value.value) if (value.tag == 'UnrealizedPnL') else self.unrealizedPNL
-        self.realizedPNL = float(value.value) if (value.tag == 'RealizedPnL') else self.realizedPNL
+        self.portfolio_value = float(value.value) if value.tag == 'GrossPositionValue' else self.portfolio_value
+        self.unrealizedPNL = float(value.value) if value.tag == 'UnrealizedPnL' else self.unrealizedPNL
+        self.realizedPNL = float(value.value) if value.tag == 'RealizedPnL' else self.realizedPNL
+        # if self.update % 5 != 0:
+        #     return
+        # self.account = ib.accountSummary()
 
         if self.prev_cash != self.cash_in_hand:
 
@@ -762,10 +766,6 @@ class Trade:
             if self.submitted == 1:
                 self.submitted = 0
 
-        if (self.portfolio_value != 0 and self.stock_owned[0] == 0 and self.stock_owned[1] == 0) or (
-                self.stock_owned[0] != 0 or self.stock_owned[1] != 0 and self.portfolio_value == 0):
-            # self.option_position()
-            self.submitted = 0
 
 
 def is_time_between(begin_time, end_time, check_time=None):
