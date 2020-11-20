@@ -484,7 +484,7 @@ class Trade:
                 ((self.call_option_price.bid - self.call_cost) <= -1 * stop_loss) and not
         (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
                 self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or
-                                            (df["bar_num"].iloc[i - 1] < -2 and df["obv_slope"].iloc[
+                                            (df["bar_num"].iloc[i - 1] < -6 and df["obv_slope"].iloc[
                                                 i - 1] < -30)) and self.submitted == 0:
 
             # conditions to sell calls to stop loss
@@ -498,7 +498,7 @@ class Trade:
                 ((self.put_option_price.bid - self.put_cost) <= -1 * stop_loss) and
                 not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and
                 self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) or
-                                            (df["bar_num"].iloc[i - 1] > 2 and df["obv_slope"].iloc[i - 1] > 30)) \
+                                            (df["bar_num"].iloc[i - 1] > 6 and df["obv_slope"].iloc[i - 1] > 30)) \
                 and self.submitted == 0:
             # conditions to sell puts to stop loss
 
@@ -663,10 +663,10 @@ class Trade:
             print('Rejected to buy, either because the time of trade or there is another order or current loss >= 200')
             self.submitted = 0
             return
-        quantity = quantity if quantity < 4 else 3
+        quantity = 1 #quantity if quantity < 4 else 3
         order = LimitOrder(action='BUY', totalQuantity=quantity,
                            lmtPrice=price.ask-0.25)  # round(25 * round(price[i]/25, 2), 2))
-        trade = 1 #ib.placeOrder(contract, order)
+        trade = ib.placeOrder(contract, order)
         print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
         ib.sleep(15)
         if not trade.orderStatus.status == "Filled":
