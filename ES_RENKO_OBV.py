@@ -201,12 +201,20 @@ class Trade:
         self.max_put_price = self.put_option_price.bid  # define max put price (use to compare to current price)
         # self.max_put_computation_price = self.put_option_price.modelGreeks.optPrice
         self.prev_cash = 0
-        self.account = ib.accountSummary()
-        # print(self.account)# get initial account value
-        self.portfolio_value = float(self.account[52].value)  # set variables values
-        self.cash_in_hand = float(self.account[22].value)  # set variables values
-        self.unrealizedPNL = float(self.account[55].value)
-        self.realizedPNL = float(self.account[56].value)
+        self.cash_in_hand = 0
+        self.total_liquidity = 0
+
+        self.portfolio_value = 0
+        self.unrealizedPNL = 0
+        self.realizedPNL =0
+        for self.account in ib.accountSummary():
+            self.cash_in_hand = float(self.account.value) if self.account.tag == 'NetLiquidationByCurrency' else self.cash_in_hand
+            self.total_liquidity = float(self.account.value) if self.account.tag == 'TotalCashBalance' else self.total_liquidity
+
+            self.portfolio_value = float(self.account.value) if self.account.tag == 'FutureOptionValue' else self.portfolio_value
+            self.unrealizedPNL = float(self.account.value) if self.account.tag == 'UnrealizedPnL' else self.unrealizedPNL
+            self.realizedPNL = float(self.account.value) if self.account.tag == 'RealizedPnL' else self.realizedPNL
+
         self.reqId = []
         self.ATR_factor = 1
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
@@ -377,7 +385,6 @@ class Trade:
 
         stop_loss = 2 + 1.75 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
         self.ATR_factor = 0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
-
         print(
             f'time = {self.data_raw.iloc[-1, 0] - timedelta(hours=7)} cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
             f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
@@ -637,7 +644,7 @@ class Trade:
             print(f'price = {price.bid}')
             print(f'Take profit Position: {action} {totalQuantity} {contract.localSymbol}')
 
-            order = LimitOrder(action=action, totalQuantity=totalQuantity, lmtPrice=price.bid)
+            order = LimitOrder(action=action, totalQuantity=totalQuantity, lmtPrice=price.bid+0.25)
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(15)
             if not trade.orderStatus.remaining == 0:
@@ -652,14 +659,14 @@ class Trade:
         return
 
     def open_position(self, contract, quantity, price):  # start position
-        if len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0:
+        if len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0 or self.realizedPNL <= -200:
             print('Rejected to buy, either because the time of trade or there is another order or current loss >= 200')
             self.submitted = 0
             return
-        quantity = 1  # quantity if quantity < 4 else 3
+        quantity = quantity if quantity < 4 else 3
         order = LimitOrder(action='BUY', totalQuantity=quantity,
-                           lmtPrice=price.ask)  # round(25 * round(price[i]/25, 2), 2))
-        trade = ib.placeOrder(contract, order)
+                           lmtPrice=price.ask-0.25)  # round(25 * round(price[i]/25, 2), 2))
+        trade = 1 #ib.placeOrder(contract, order)
         print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
         ib.sleep(15)
         if not trade.orderStatus.status == "Filled":
@@ -751,11 +758,16 @@ class Trade:
     def account_update(self, value=None):
 
         self.update += 1
-        self.cash_in_hand = float(value.value) if value.tag == 'TotalCashValue' else self.cash_in_hand
+        self.cash_in_hand = float(
+            self.account.value) if self.account.tag == 'NetLiquidationByCurrency' else self.cash_in_hand
+        self.total_liquidity = float(
+            self.account.value) if self.account.tag == 'TotalCashBalance' else self.total_liquidity
 
-        self.portfolio_value = float(value.value) if value.tag == 'GrossPositionValue' else self.portfolio_value
-        self.unrealizedPNL = float(value.value) if value.tag == 'UnrealizedPnL' else self.unrealizedPNL
-        self.realizedPNL = float(value.value) if value.tag == 'RealizedPnL' else self.realizedPNL
+        self.portfolio_value = float(
+            self.account.value) if self.account.tag == 'FutureOptionValue' else self.portfolio_value
+        self.unrealizedPNL = float(self.account.value) if self.account.tag == 'UnrealizedPnL' else self.unrealizedPNL
+        self.realizedPNL = float(self.account.value) if self.account.tag == 'RealizedPnL' else self.realizedPNL
+
         # if self.update % 5 != 0:
         #     return
         # self.account = ib.accountSummary()

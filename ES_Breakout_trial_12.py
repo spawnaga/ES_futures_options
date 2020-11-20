@@ -186,6 +186,13 @@ class Trade:
         self.max_put_price = self.put_option_price.bid  # define max put price (use to compare to current price)
         self.prev_cash = 0
         self.account = ib.accountSummary()  # get initial account value
+        self.cash_in_hand = float(self.account.value) if self.account.tag == 'TotalCashValue' else 0
+
+        self.portfolio_value = float(self.account.value) if self.account.tag == 'GrossPositionValue' else 0
+        self.unrealizedPNL = float(self.account.value) if self.account.tag == 'UnrealizedPnL' else 0
+        self.realizedPNL = float(self.account.value) if self.account.tag == 'RealizedPnL' else 0
+
+
         self.portfolio_value = float(self.account[29].value)  # set variables values
         self.cash_in_hand = float(self.account[22].value)  # set variables values
         self.unrealizedPNL = float(self.account[32].value)
@@ -443,6 +450,7 @@ class Trade:
         return
 
     def open_position(self, contract, quantity, price):  # start position
+
         order = LimitOrder('BUY', quantity,
                            price.ask)  # round(25 * round(price[i]/25, 2), 2))
         trade = ib.placeOrder(contract, order)
