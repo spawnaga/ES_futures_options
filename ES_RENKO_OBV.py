@@ -207,14 +207,11 @@ class Trade:
         self.portfolio_value = 0
         self.unrealizedPNL = 0
         self.realizedPNL =0
-        for self.account in ib.accountSummary():
-            self.cash_in_hand = float(self.account.value) if self.account.tag == 'NetLiquidationByCurrency' else self.cash_in_hand
-            self.total_liquidity = float(self.account.value) if self.account.tag == 'TotalCashBalance' else self.total_liquidity
-
-            self.portfolio_value = float(self.account.value) if self.account.tag == 'FutureOptionValue' else self.portfolio_value
-            self.unrealizedPNL = float(self.account.value) if self.account.tag == 'UnrealizedPnL' else self.unrealizedPNL
-            self.realizedPNL = float(self.account.value) if self.account.tag == 'RealizedPnL' else self.realizedPNL
-
+        self.account = ib.accountSummary()  # get initial account value
+        self.portfolio_value = float(self.account[29].value)  # set variables values
+        self.cash_in_hand = float(self.account[22].value)  # set variables values
+        self.unrealizedPNL = float(self.account[32].value)
+        self.realizedPNL = float(self.account[33].value)
         self.reqId = []
         self.ATR_factor = 1
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
@@ -383,8 +380,9 @@ class Trade:
         take_profit = []  # set initial take profit index to None
         i = -1  # use to get the last data in dataframe+
 
-        stop_loss = 2 + 1.75 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
+        stop_loss = 4 + 1.75 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
         self.ATR_factor = 0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
+
         print(
             f'time = {self.data_raw.iloc[-1, 0] - timedelta(hours=7)} cash in hand = {self.cash_in_hand}, portfolio value = {self.portfolio_value}, unrealized PNL ='
             f' {self.unrealizedPNL} realized PNL = {self.realizedPNL}, holding = {self.stock_owned[0]} '
@@ -414,8 +412,10 @@ class Trade:
             return buy_index, sell_index, take_profit
 
         elif self.barnumb_lock is False and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
-                df["bar_num"].iloc[i - 1] > 2 and \
-                df["obv_slope"].iloc[i - 1] > 25 and \
+                ((df["bar_num"].iloc[i - 1] > 2 and \
+                df["obv_slope"].iloc[i - 1] > 25 and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
+            i - 1]) or (df["bar_num"].iloc[i] >= 2 and \
+                  df["obv_slope"].iloc[i] > 38)) and \
                 (df['B_upper'].iloc[i - 1] + 0.5 > df['close'].iloc[i - 1]) and \
                 df['RSI'].iloc[-2] < 90 and df['EMA_9-EMA_26'].iloc[
             i - 1] > 0 and buy_index == [] and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
@@ -426,12 +426,13 @@ class Trade:
             return buy_index, sell_index, take_profit
 
         elif self.barnumb_lock is False and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
-                df["bar_num"].iloc[i - 1] < -2 and \
-                df["obv_slope"].iloc[i - 1] < -25 and \
+                ((df["bar_num"].iloc[i - 1] < -2 and \
+                df["obv_slope"].iloc[i - 1] < -25 and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
+            i - 1]) or (df["bar_num"].iloc[i] <= -2 and \
+                  df["obv_slope"].iloc[i] < -38)) and \
                 (df['B_lower'].iloc[i - 1] - 0.5 <= df['close'].iloc[i - 1]) and \
                 df['RSI'].iloc[i - 2] > 10 and df['EMA_9-EMA_26'].iloc[
-            i - 1] < 0 and buy_index == [] and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
-            i - 1] and self.submitted == 0:
+            i - 1] < 0 and buy_index == [] and self.submitted == 0:
             print("Buy put")
             buy_index.append(1)
             self.submitted = 1
@@ -481,6 +482,33 @@ class Trade:
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
+            ((self.call_option_price.bid - self.call_cost) <= -1 * stop_loss) and not
+            (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
+                self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or
+                                            (df["bar_num"].iloc[i - 1] < -6 and df["obv_slope"].iloc[
+                                                i - 1] < -30)) and self.submitted == 0:
+
+            # conditions to sell calls to stop loss
+            self.submitted = 1
+            print("2nd buy")
+            buy_index.append(0)
+
+            return buy_index, sell_index, take_profit
+
+        elif (self.stock_owned[1] > 0) and ((not np.isnan(self.put_option_price.bid)) and (
+                ((self.put_option_price.bid - self.put_cost) <= -1 * stop_loss) and
+                not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and
+                self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) or
+                                            (df["bar_num"].iloc[i - 1] > 6 and df["obv_slope"].iloc[i - 1] > 30)) \
+                and self.submitted == 0:
+            # conditions to sell puts to stop loss
+
+            self.submitted = 1
+            print("2nd buy")
+            buy_index.append(1)
+            return buy_index, sell_index, take_profit
+
+        elif (self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
                 ((self.call_option_price.bid - self.call_cost) <= -1 * stop_loss) and not
         (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
                 self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or
@@ -507,7 +535,7 @@ class Trade:
             self.submitted = 1
             return buy_index, sell_index, take_profit
 
-        elif (self.stock_owned[0] > 0) and (self.call_option_price.bid - self.call_cost >= 0.75) and (
+        elif (self.stock_owned[0] > 0) and (self.call_option_price.bid - self.call_cost >= 1) and (
                 df["obv_slope"].iloc[i] < 30) \
                 and not (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and self.submitted == 0:
 
@@ -517,7 +545,7 @@ class Trade:
             return buy_index, sell_index, take_profit
 
 
-        elif (self.stock_owned[1] > 0) and (self.put_option_price.bid - self.put_cost >= 0.75) and (
+        elif (self.stock_owned[1] > 0) and (self.put_option_price.bid - self.put_cost >= 1) and (
                 df["obv_slope"].iloc[i] > -30) \
                 and not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and self.submitted == 0:
 
@@ -599,8 +627,7 @@ class Trade:
 
             print(f'price = {price.bid + 0.25}')
             print(f'Flatten Position: {action} {totalQuantity} {contract.localSymbol}')
-            order = LimitOrder(action=action, totalQuantity=totalQuantity, lmtPrice=price.bid,
-                               account='U2809143') if each.position > 0 \
+            order = LimitOrder(action=action, totalQuantity=totalQuantity, lmtPrice=price.bid) if each.position > 0 \
                 else MarketOrder(action=action, totalQuantity=totalQuantity)  # closing position as fast as possible
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(10)  # waiting 10 secs
@@ -644,7 +671,7 @@ class Trade:
             print(f'price = {price.bid}')
             print(f'Take profit Position: {action} {totalQuantity} {contract.localSymbol}')
 
-            order = LimitOrder(action=action, totalQuantity=totalQuantity, lmtPrice=price.bid+0.25)
+            order = LimitOrder(action=action, totalQuantity=totalQuantity, lmtPrice=price.bid)
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(15)
             if not trade.orderStatus.remaining == 0:
@@ -659,13 +686,13 @@ class Trade:
         return
 
     def open_position(self, contract, quantity, price):  # start position
-        if len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0 or self.realizedPNL <= -200:
+        if len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0:
             print('Rejected to buy, either because the time of trade or there is another order or current loss >= 200')
             self.submitted = 0
             return
         quantity = 1 #quantity if quantity < 4 else 3
         order = LimitOrder(action='BUY', totalQuantity=quantity,
-                           lmtPrice=price.ask-0.25)  # round(25 * round(price[i]/25, 2), 2))
+                           lmtPrice=price.ask)  # round(25 * round(price[i]/25, 2), 2))
         trade = ib.placeOrder(contract, order)
         print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
         ib.sleep(15)
@@ -758,16 +785,11 @@ class Trade:
     def account_update(self, value=None):
 
         self.update += 1
-        self.cash_in_hand = float(
-            self.account.value) if self.account.tag == 'NetLiquidationByCurrency' else self.cash_in_hand
-        self.total_liquidity = float(
-            self.account.value) if self.account.tag == 'TotalCashBalance' else self.total_liquidity
+        self.cash_in_hand = float(value.value) if value.tag == 'TotalCashValue' else self.cash_in_hand
 
-        self.portfolio_value = float(
-            self.account.value) if self.account.tag == 'FutureOptionValue' else self.portfolio_value
-        self.unrealizedPNL = float(self.account.value) if self.account.tag == 'UnrealizedPnL' else self.unrealizedPNL
-        self.realizedPNL = float(self.account.value) if self.account.tag == 'RealizedPnL' else self.realizedPNL
-
+        self.portfolio_value = float(value.value) if value.tag == 'GrossPositionValue' else self.portfolio_value
+        self.unrealizedPNL = float(value.value) if value.tag == 'UnrealizedPnL' else self.unrealizedPNL
+        self.realizedPNL = float(value.value) if value.tag == 'RealizedPnL' else self.realizedPNL
         # if self.update % 5 != 0:
         #     return
         # self.account = ib.accountSummary()
