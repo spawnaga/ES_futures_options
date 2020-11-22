@@ -482,7 +482,7 @@ class Trade:
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
-            ((self.call_option_price.bid - self.call_cost) <= -1 * stop_loss) and not
+            ((self.call_option_price.bid - self.call_cost) <= -1 * 4) and not
             (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
                 self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or
                                             (df["bar_num"].iloc[i - 1] < -6 and df["obv_slope"].iloc[
@@ -490,13 +490,13 @@ class Trade:
 
             # conditions to sell calls to stop loss
             self.submitted = 1
-            print("2nd buy")
+            print("2nd buy calls")
             buy_index.append(0)
 
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[1] > 0) and ((not np.isnan(self.put_option_price.bid)) and (
-                ((self.put_option_price.bid - self.put_cost) <= -1 * stop_loss) and
+                ((self.put_option_price.bid - self.put_cost) <= -1 * 4) and
                 not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and
                 self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) or
                                             (df["bar_num"].iloc[i - 1] > 6 and df["obv_slope"].iloc[i - 1] > 30)) \
@@ -504,7 +504,7 @@ class Trade:
             # conditions to sell puts to stop loss
 
             self.submitted = 1
-            print("2nd buy")
+            print("2nd buy puts")
             buy_index.append(1)
             return buy_index, sell_index, take_profit
 
