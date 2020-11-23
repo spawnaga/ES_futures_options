@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import sys
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta, time, timezone
 import talib as ta
 from talib import MA_Type
 from stocktrends import Renko
@@ -207,15 +207,19 @@ class Trade:
         self.portfolio_value = 0
         self.unrealizedPNL = 0
         self.realizedPNL = 0
-        for self.account in ib.accountSummary():  # get initial account value
+        self.cash_in_hand = 0
+        self.realizedPNL = 0
+        self.unrealizedPNL = 0
+        self.portfolio_value = 0
+        for self.account in ib.accountValues():  # get initial account value
             self.cash_in_hand = float(
-                self.account.value) if self.account.tag == 'TotalCashValue' and self.account.account == 'U2809143' else 0
+                self.account.value) if (self.account.tag == 'TotalCashValue' and self.account.account == 'U2809143') else self.cash_in_hand
             self.portfolio_value = float(
-                self.account.value) if self.account.tag == 'GrossPositionValue' and self.account.account == 'U2809143' else 0
+                self.account.value) if (self.account.tag == 'GrossPositionValue' and self.account.account == 'U2809143') else self.portfolio_value
             self.unrealizedPNL = float(
-                self.account.value) if self.account.tag == 'UnrealizedPnL' and self.account.account == 'U2809143' else 0
+                self.account.value) if (self.account.tag == 'UnrealizedPnL' and self.account.account == 'U2809143') else self.unrealizedPNL
             self.realizedPNL = float(
-                self.account.value) if self.account.tag == 'RealizedPnL' and self.account.account == 'U2809143' else 0
+                self.account.value) if (self.account.tag == 'RealizedPnL' and self.account.account == 'U2809143') else self.realizedPNL
         self.reqId = []
         self.ATR_factor = 1
         self.update = -1  # set this variable to -1 to get the last data in the get_data df
@@ -224,6 +228,8 @@ class Trade:
         self.barnumb_lock = False
         self.barnumb_value = 0
         self.second_buy = False
+        # if self.stock_owned.any() > 0:
+        #     self.discount =
 
         # self.call_option_price_average = self.roll_contract(self.call_option_price_average, self.call_option_price.bid)
         # self.put_option_price_average = self.roll_contract(self.put_option_price_average, self.put_option_price.bid)
@@ -270,11 +276,11 @@ class Trade:
 
         if self.stock_owned[0] > 0:
             print(f'Call cost was = {self.call_cost}')
-            print(f'cureen call options price - original cost price = {self.call_option_price.bid - self.call_cost}')
+            print((self.call_option_price.bid - self.call_cost))
 
         elif self.stock_owned[1] > 0:
             print(f'Put cost was = {self.put_cost}')
-            print(f'cureen put options price - original cost price = {self.put_option_price.bid - self.put_cost}')
+            print((self.put_option_price.bid - self.put_cost))
 
         buy_index, sell_index, take_profit = self.strategy(df)  # set initial buy index to None
 
@@ -293,7 +299,7 @@ class Trade:
                         self.flatten_position(contract, price)
                 self.submitted = 0
 
-                # self.option_position()
+
             else:
                 for i in sell_index:
                     # self.stock_owned[i] = 0
@@ -334,13 +340,16 @@ class Trade:
                     self.take_profit(contract, price)
             self.submitted = 0
 
-            # self.option_position()
+
 
         elif not len(buy_index) == 0:  # start buying to start trade
 
             for i in buy_index:
-                contract = res.get_contract('C', 2000) if i == 0 else res.get_contract('P', 2000)
-                ib.qualifyContracts(contract)
+                if not self.stock_owned.any() > 0:
+                    contract = res.get_contract('C', 2000) if i == 0 else res.get_contract('P', 2000)
+                    ib.qualifyContracts(contract)
+                else:
+                    contract = self.call_contract if i == 1 else self.put_contract
 
                 if self.cash_in_hand > (self.options_price[i] * 50) \
                         and (self.stock_owned[0] < 2 or self.stock_owned[1] < 2):
@@ -353,7 +362,7 @@ class Trade:
                     self.open_position(contract=contract, quantity=quantity, price=price)
             self.submitted = 0
 
-            # self.option_position()
+
 
     def strategy(self, df):
         """
@@ -385,7 +394,10 @@ class Trade:
         take_profit = []  # set initial take profit index to None
         i = -1  # use to get the last data in dataframe+
 
-        stop_loss = 4 + 1.75 + 0.25 * round((df["ATR"].iloc[i]) / 0.25)  # set stop loss variable according to ATR
+        # if self.stock_owned.any > 0 and datetime.now().minute // 15 == 0:
+        #     self.discount = self.discount + 0.0025
+
+        stop_loss = 2 + 1.75 + 0.25 * round((df["ATR"].iloc[i] ) / 0.25)  # set stop loss variable according to ATR
         self.ATR_factor = 0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
 
         print(
@@ -487,8 +499,8 @@ class Trade:
         #     return buy_index, sell_index, take_profit
 
         elif (2 > self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
-                ((self.call_option_price.bid - self.call_cost) <= -1 * 4) and not
-        (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
+                ((self.call_option_price.bid / self.call_cost) <= 0.7) and not
+                (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
                 self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or
                                                 (df["bar_num"].iloc[i - 1] < -6 and df["obv_slope"].iloc[
                                                     i - 1] < -30)) and self.submitted == 0:
@@ -502,7 +514,7 @@ class Trade:
             return buy_index, sell_index, take_profit
 
         elif (2 > self.stock_owned[1] > 0) and ((not np.isnan(self.put_option_price.bid)) and (
-                ((self.put_option_price.bid - self.put_cost) <= -1 * 4) and
+                ((self.put_option_price.bid / self.put_cost) <= 0.7) and
                 not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and
                 self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) or
                                                 (df["bar_num"].iloc[i - 1] > 6 and df["obv_slope"].iloc[i - 1] > 30)) \
@@ -516,7 +528,7 @@ class Trade:
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[0] > 1) and ((not np.isnan(self.call_option_price.bid)) and (
-                ((self.call_option_price.bid - self.call_cost) <= -1 * stop_loss / 2)) and not
+                ((self.call_option_price.bid / self.call_cost) <= 0.65)) and not
                                             (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
                                             self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or \
                 (df["bar_num"].iloc[i - 1] < -6 and df["obv_slope"].iloc[i - 1] < -30) and self.submitted == 0:
@@ -529,9 +541,8 @@ class Trade:
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[1] > 1) and ((not np.isnan(self.put_option_price.bid)) and (
-                ((self.call_option_price.bid - self.call_cost) <= -1 * stop_loss / 2)) and not
-                                            not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[
-                                                i - 1] < -25) and
+                ((self.call_option_price.bid / self.call_cost) <= 0.65)) and not
+                                            (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and
                                             self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) or \
                 (df["bar_num"].iloc[i - 1] > 6 and df["obv_slope"].iloc[i - 1] > 30) and self.submitted == 0:
             # conditions to sell puts to stop loss
@@ -621,7 +632,6 @@ class Trade:
                           f'1- time Now is between 17:00 to 17:15 '
                           f'2- contract is not right'
                           f'3- contract price slippage (contract price dropped under its normal/real value)')
-                    self.option_position()
                     return
             except:
                 print('checking price for slippage got an error, skipping sell to avoid loss, please check this part')
@@ -740,8 +750,11 @@ class Trade:
 
             return
         else:
+            if self.call_cost or self.put_cost:
+                pass
             if self.portfolio != position:
                 self.portfolio = position
+
                 for each in position:
                     if each.contract.right == 'C':
                         call_position = each.contract
@@ -756,8 +769,10 @@ class Trade:
                         self.stock_owned[1] = each.position
                         self.put_cost = 0.25 * round(each.averageCost / 50 / 0.25)
 
+
                 self.call_cost = self.call_cost if not isinstance(call_position, type(None)) else -1
                 self.put_cost = self.put_cost if not isinstance(put_position, type(None)) else -1
+                print('******************', self.put_cost)
 
                 self.call_contract = call_position if not isinstance(call_position, type(None)) else res.get_contract(
                     'C', 2000)
