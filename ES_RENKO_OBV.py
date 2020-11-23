@@ -266,11 +266,11 @@ class Trade:
 
         if self.stock_owned[0] > 0:
             print(f'Call cost was = {self.call_cost}')
-            print((self.call_option_price.bid - self.call_cost))
+            print(f'cureen call options price - original cost price = {self.call_option_price.bid - self.call_cost}')
 
         elif self.stock_owned[1] > 0:
             print(f'Put cost was = {self.put_cost}')
-            print((self.put_option_price.bid - self.put_cost))
+            print(f'cureen put options price - original cost price = {self.put_option_price.bid - self.put_cost}')
 
         buy_index, sell_index, take_profit = self.strategy(df)  # set initial buy index to None
 
@@ -407,9 +407,7 @@ class Trade:
             self.submitted = 0
 
         if self.call_option_price.bid < 1.25 or np.isnan(self.call_option_price.bid) or self.put_option_price.bid < 1.25 \
-                or np.isnan(self.put_option_price.bid) or (self.data_raw.iloc[-1, 1] < 100) or \
-                (self.stock_owned[0] > 0 and self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or \
-                (self.stock_owned[1] > 0 and self.put_option_price.bid > self.call_option_price.modelGreeks.optPrice):
+                or np.isnan(self.put_option_price.bid) or (self.data_raw.iloc[-1, 1] < 100):
             print('glitch or slippage in option prices, cancel check')
             return buy_index, sell_index, take_profit
 
