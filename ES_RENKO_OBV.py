@@ -343,7 +343,7 @@ class Trade:
                     price = ib.reqMktData(contract, '', False, False)
                     ib.sleep(1)
                     quantity = int((self.cash_in_hand / (self.options_price[i] * 50))) - 1 if \
-                        int((self.cash_in_hand / (self.options_price[i] * 50))) > 1 else 1
+                        int((self.cash_in_hand / (self.options_price[i] * 50))) > 1 else ib.positions()[0].position if self.second_buy is True else 1
                     self.block_buying = 1
                     self.open_position(contract=contract, quantity=quantity, price=price)
             self.submitted = 0
@@ -407,7 +407,9 @@ class Trade:
             self.submitted = 0
 
         if self.call_option_price.bid < 1.25 or np.isnan(self.call_option_price.bid) or self.put_option_price.bid < 1.25 \
-                or np.isnan(self.put_option_price.bid) or (self.data_raw.iloc[-1, 1] < 100):
+                or np.isnan(self.put_option_price.bid) or (self.data_raw.iloc[-1, 1] < 100) or \
+                (self.stock_owned[0] > 0 and self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or \
+                (self.stock_owned[1] > 0 and self.put_option_price.bid > self.call_option_price.modelGreeks.optPrice):
             print('glitch or slippage in option prices, cancel check')
             return buy_index, sell_index, take_profit
 
@@ -512,7 +514,7 @@ class Trade:
 
         elif (self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
                 ((self.call_option_price.bid - self.call_cost) <= -1 * stop_loss) and not
-        (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
+                (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
                 self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or
                                             (df["bar_num"].iloc[i - 1] < -6 and df["obv_slope"].iloc[
                                                 i - 1] < -30)) and self.submitted == 0:
@@ -560,6 +562,7 @@ class Trade:
             self.submitted = 0
             self.barnumb_value = False
             self.barnumb_value = 0
+            return buy_index, sell_index, take_profit
 
         else:
             print("Hold")
@@ -688,7 +691,7 @@ class Trade:
         return
 
     def open_position(self, contract, quantity, price):  # start position
-        if (len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0) and not (self.second_buy is True) :
+        if (len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0) and (self.second_buy is False):
             print('Rejected to buy, either because the time of trade or there is another order or current loss >= 200')
             self.submitted = 0
             return
