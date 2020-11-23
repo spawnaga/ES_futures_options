@@ -219,6 +219,7 @@ class Trade:
         self.ATR_decrement = 0.005
         self.barnumb_lock = False
         self.barnumb_value = 0
+        self.second_buy = False
 
         # self.call_option_price_average = self.roll_contract(self.call_option_price_average, self.call_option_price.bid)
         # self.put_option_price_average = self.roll_contract(self.put_option_price_average, self.put_option_price.bid)
@@ -337,9 +338,8 @@ class Trade:
                 contract = res.get_contract('C', 2000) if i == 0 else res.get_contract('P', 2000)
                 ib.qualifyContracts(contract)
 
-                if self.cash_in_hand > (self.options_price[i] * 50) and self.cash_in_hand > self.portfolio_value \
-                        and (self.stock_owned[0] < 1 or self.stock_owned[1] < 1) and len(
-                    self.portfolio) == 0:
+                if self.cash_in_hand > (self.options_price[i] * 50) \
+                        and (self.stock_owned[0] < 2 or self.stock_owned[1] < 2):
                     price = ib.reqMktData(contract, '', False, False)
                     ib.sleep(1)
                     quantity = int((self.cash_in_hand / (self.options_price[i] * 50))) - 1 if \
@@ -481,7 +481,7 @@ class Trade:
             self.submitted = 1
             return buy_index, sell_index, take_profit
 
-        elif (self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
+        elif (2 > self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
             ((self.call_option_price.bid - self.call_cost) <= -1 * 4) and not
             (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
                 self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or
@@ -492,10 +492,11 @@ class Trade:
             self.submitted = 1
             print("2nd buy calls")
             buy_index.append(0)
+            self.second_buy = True
 
             return buy_index, sell_index, take_profit
 
-        elif (self.stock_owned[1] > 0) and ((not np.isnan(self.put_option_price.bid)) and (
+        elif (2 > self.stock_owned[1] > 0) and ((not np.isnan(self.put_option_price.bid)) and (
                 ((self.put_option_price.bid - self.put_cost) <= -1 * 4) and
                 not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and
                 self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) or
@@ -506,6 +507,7 @@ class Trade:
             self.submitted = 1
             print("2nd buy puts")
             buy_index.append(1)
+            self.second_buy = True
             return buy_index, sell_index, take_profit
 
         elif (self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
@@ -686,7 +688,7 @@ class Trade:
         return
 
     def open_position(self, contract, quantity, price):  # start position
-        if len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0:
+        if (len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0) and not (self.second_buy is True) :
             print('Rejected to buy, either because the time of trade or there is another order or current loss >= 200')
             self.submitted = 0
             return
@@ -701,6 +703,7 @@ class Trade:
             self.submitted = 0
         else:
             self.stock_owned = np.array([quantity, 0]) if contract.right == "C" else np.array([0, quantity])
+            self.second_buy = False
             self.submitted = 0
 
         self.submitted = 0
