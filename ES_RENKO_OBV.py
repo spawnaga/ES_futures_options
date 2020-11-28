@@ -131,7 +131,7 @@ class get_data:
         # ES_df['MA_200'] = ta.MA(ES_df['close'], timeperiod=200)
         ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
         ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=26)
-        # ES_df['derv_1'] = np.gradient(ES_df['EMA_9'])
+        # ES_df['z np.gradient(ES_df['EMA_9'])
         # ES_df['EMA_9_26']=df['EMA_9']/df['EMA_26']
         # ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
         # ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
@@ -428,8 +428,7 @@ class Trade:
             print('glitch or slippage in option prices, cancel check')
             return buy_index, sell_index, take_profit
 
-        elif self.barnumb_lock is False and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
-                ((df["bar_num"].iloc[i - 1] > 2 and
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and((df["bar_num"].iloc[i - 1] > 2 and
                   df["obv_slope"].iloc[i - 1] > 25 and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
                       i - 1]) or (df["bar_num"].iloc[i] >= 2 and
                                   df["obv_slope"].iloc[i] > 38)) and \
@@ -442,96 +441,73 @@ class Trade:
             self.submitted = 1
             return buy_index, sell_index, take_profit
 
-        elif self.barnumb_lock is False and self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
-                ((df["bar_num"].iloc[i - 1] < -2 and
-                  df["obv_slope"].iloc[i - 1] < -25 and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
-                      i - 1]) or (df["bar_num"].iloc[i] <= -2 and
-                                  df["obv_slope"].iloc[i] < -38)) and \
-                (df['B_lower'].iloc[i - 1] - 0.5 <= df['close'].iloc[i - 1]) and \
-                df['RSI'].iloc[i - 2] > 10 and df['EMA_9-EMA_26'].iloc[
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and ((df["bar_num"].iloc[i - 1] < -2 and df["obv_slope"].iloc[i - 1] < -25 and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[i - 1]) or (df["bar_num"].iloc[i] <= -2 and df["obv_slope"].iloc[i] < -38)) and (df['B_lower'].iloc[i - 1] - 0.5 <= df['close'].iloc[i - 1]) and df['RSI'].iloc[i - 2] > 10 and df['EMA_9-EMA_26'].iloc[
             i - 1] < 0 and buy_index == [] and self.submitted == 0:
             print("Buy put")
             buy_index.append(1)
             self.submitted = 1
             return buy_index, sell_index, take_profit
 
-        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
-                df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and \
-                df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
-                and df["RSI"].iloc[i] < 80 and buy_index == [] and self.submitted == 0:
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and df["RSI"].iloc[i] < 80 and buy_index == [] and self.submitted == 0:
             #  conditions to buy calls
             print("Buy call")
             buy_index.append(0)
             self.submited = 1
             return buy_index, sell_index, take_profit
 
-        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and \
-                df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and \
-                df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] \
-                and df["RSI"].iloc[i] > 20 and \
-                buy_index == [] and self.submitted == 0:
+        elif self.stock_owned[0] == 0 and self.stock_owned[1] == 0 and df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1] and df["RSI"].iloc[i] > 20 and buy_index == [] and self.submitted == 0:
             print("Buy put")
             buy_index.append(1)
             self.submitted = 1
             return buy_index, sell_index, take_profit
 
-        # elif (self.stock_owned[0] > 0 and self.stock_owned[1] == 0) \
-        #         and (df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and
-        #              df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) and \
-        #         self.stock_owned[1] == 0 and self.block_buying == 0 and self.submitted == 0:
-        #     # conditions to sell calls and buy puts if trend reversed
-        #     print("sell call and buy puts")
-        #     sell_index.append(0)
-        #     buy_index.append(1)
-        #     self.submitted =1
-        #
-        #     return buy_index, sell_index, take_profit
-        #
-        # elif (self.stock_owned[1] > 0 and self.stock_owned[0] == 0) and \
-        #         (df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and
-        #          df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) \
-        #         and self.stock_owned[0] == 0 and self.block_buying == 0 and self.submitted == 0:
-        #     # conditions to buy calls and sell puts if trend reversed
-        #     print("sell put and buy calls")
-        #     sell_index.append(1)
-        #     buy_index.append(0)
-        #     self.submitted = 1
-        #     return buy_index, sell_index, take_profit
-
-        elif (2 > self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
-                ((self.call_option_price.bid / self.call_cost) <= 0.7) and not
-                (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
-                self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or
-                                                (df["bar_num"].iloc[i - 1] < -6 and df["obv_slope"].iloc[
-                                                    i - 1] < -30)) and self.submitted == 0:
-
-            # conditions to sell calls to stop loss
-            self.submitted = 1
-            print("2nd buy calls")
-            buy_index.append(0)
-            self.second_buy = True
-
-            return buy_index, sell_index, take_profit
-
-        elif (2 > self.stock_owned[1] > 0) and ((not np.isnan(self.put_option_price.bid)) and (
-                ((self.put_option_price.bid / self.put_cost) <= 0.7) and
-                not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and
-                self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) or
-                                                (df["bar_num"].iloc[i - 1] > 6 and df["obv_slope"].iloc[i - 1] > 30)) \
-                and self.submitted == 0:
-            # conditions to sell puts to stop loss
-
-            self.submitted = 1
-            print("2nd buy puts")
+        elif (self.stock_owned[0] > 0 and self.stock_owned[1] == 0) and (df["low"].iloc[i] <= df["roll_min_cp"].iloc[i - 1] and df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) and self.stock_owned[1] == 0 and self.block_buying == 0 and self.submitted == 0:
+            # conditions to sell calls and buy puts if trend reversed
+            print("sell call and buy puts")
+            sell_index.append(0)
             buy_index.append(1)
-            self.second_buy = True
+            self.submitted =1
+
             return buy_index, sell_index, take_profit
 
-        elif (self.stock_owned[0] > 1) and ((not np.isnan(self.call_option_price.bid)) and (
-                ((self.call_option_price.bid / self.call_cost) <= 0.65)) and not
-                                            (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
-                                            self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or \
-                (df["bar_num"].iloc[i - 1] < -6 and df["obv_slope"].iloc[i - 1] < -30) and self.submitted == 0:
+        elif (self.stock_owned[1] > 0 and self.stock_owned[0] == 0) and(df["high"].iloc[i] >= df["roll_max_cp"].iloc[i - 1] and df["volume"].iloc[i] > df["roll_max_vol"].iloc[i - 1]) and self.stock_owned[0] == 0 and self.block_buying == 0 and self.submitted == 0:
+            # conditions to buy calls and sell puts if trend reversed
+            print("sell put and buy calls")
+            sell_index.append(1)
+            buy_index.append(0)
+            self.submitted = 1
+            return buy_index, sell_index, take_profit
+
+        # elif (2 > self.stock_owned[0] > 0) and ((not np.isnan(self.call_option_price.bid)) and (
+        #         ((self.call_option_price.bid / self.call_cost) <= 0.7) and not
+        #         (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
+        #         self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) or
+        #                                         (df["bar_num"].iloc[i - 1] < -6 and df["obv_slope"].iloc[
+        #                                             i - 1] < -30)) and self.submitted == 0:
+        #
+        #     # conditions to sell calls to stop loss
+        #     self.submitted = 1
+        #     print("2nd buy calls")
+        #     buy_index.append(0)
+        #     self.second_buy = True
+        #
+        #     return buy_index, sell_index, take_profit
+        #
+        # elif (2 > self.stock_owned[1] > 0) and ((not np.isnan(self.put_option_price.bid)) and (
+        #         ((self.put_option_price.bid / self.put_cost) <= 0.7) and
+        #         not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and
+        #         self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) or
+        #                                         (df["bar_num"].iloc[i - 1] > 6 and df["obv_slope"].iloc[i - 1] > 30)) \
+        #         and self.submitted == 0:
+        #     # conditions to sell puts to stop loss
+        #
+        #     self.submitted = 1
+        #     print("2nd buy puts")
+        #     buy_index.append(1)
+        #     self.second_buy = True
+        #     return buy_index, sell_index, take_profit
+
+        elif (self.stock_owned[0] > 0) and not np.isnan(self.call_option_price.bid) and (((self.call_option_price.bid / self.call_cost) <= 0.8)) and (df["bar_num"].iloc[i - 1] <= 0 and df["obv_slope"].iloc[i - 1] < 10) and self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice and self.submitted == 0:
 
             # conditions to sell calls to stop loss
             self.submitted = 1
@@ -540,11 +516,7 @@ class Trade:
 
             return buy_index, sell_index, take_profit
 
-        elif (self.stock_owned[1] > 1) and ((not np.isnan(self.put_option_price.bid)) and (
-                ((self.call_option_price.bid / self.call_cost) <= 0.65)) and not
-                                            (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and
-                                            self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) or \
-                (df["bar_num"].iloc[i - 1] > 6 and df["obv_slope"].iloc[i - 1] > 30) and self.submitted == 0:
+        elif (self.stock_owned[1] > 0) and not np.isnan(self.put_option_price.bid) and (((self.put_option_price.bid / self.put_cost) <= 0.8) and (df["bar_num"].iloc[i - 1] >= 0 and df["obv_slope"].iloc[i - 1] > -10) and self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) and self.submitted == 0:
             # conditions to sell puts to stop loss
 
             print("sell put")
@@ -552,9 +524,7 @@ class Trade:
             self.submitted = 1
             return buy_index, sell_index, take_profit
 
-        elif (self.stock_owned[0] > 0) and (self.call_option_price.bid - self.call_cost >= 0.75) and (
-                df["obv_slope"].iloc[i] < 30) \
-                and not (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and self.submitted == 0:
+        elif (self.stock_owned[0] > 0) and (self.call_option_price.bid - self.call_cost >= 0.75) and (df["obv_slope"].iloc[i] < 30) and not (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and self.submitted == 0:
 
             print("take profits call")
             self.submitted = 1
@@ -562,9 +532,7 @@ class Trade:
             return buy_index, sell_index, take_profit
 
 
-        elif (self.stock_owned[1] > 0) and (self.put_option_price.bid - self.put_cost >= 0.75) and (
-                df["obv_slope"].iloc[i] > -30) \
-                and not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and self.submitted == 0:
+        elif (self.stock_owned[1] > 0) and (self.put_option_price.bid - self.put_cost >= 0.75) and (df["obv_slope"].iloc[i] > -30) and not (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and self.submitted == 0:
 
             print("take profits puts")
             self.submitted = 1
@@ -688,7 +656,7 @@ class Trade:
             print(f'price = {price.bid}')
             print(f'Take profit Position: {action} {totalQuantity} {contract.localSymbol}')
 
-            order = LimitOrder(action=action, totalQuantity=totalQuantity, lmtPrice=price.bid+0.25, account='U2809143')
+            order = LimitOrder(action=action, totalQuantity=totalQuantity, lmtPrice=price.bid, account='U2809143')
             trade = ib.placeOrder(each.contract, order)
             ib.sleep(15)
             if not trade.orderStatus.remaining == 0:
@@ -703,13 +671,14 @@ class Trade:
         return
 
     def open_position(self, contract, quantity, price):  # start position
-        if (len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0) and (self.second_buy is False):
+        if len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0:
+        # if (len(ib.positions()) > 0 or len(ib.reqAllOpenOrders()) > 0) and (self.second_buy is False):
             print('Rejected to buy, either because the time of trade or there is another order or current loss >= 200')
             self.submitted = 0
             return
         quantity = 1  # quantity if quantity < 4 else 3
         order = LimitOrder(action='BUY', totalQuantity=quantity,
-                           lmtPrice=price.ask-0.25, account='U2809143')  # round(25 * round(price[i]/25, 2), 2))
+                           lmtPrice=price.ask, account='U2809143')  # round(25 * round(price[i]/25, 2), 2))
         trade = ib.placeOrder(contract, order)
         print(f'buying {"CALL" if contract.right == "C" else "PUT"}')
         ib.sleep(15)
