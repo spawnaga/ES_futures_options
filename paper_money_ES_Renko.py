@@ -126,11 +126,11 @@ class get_data:
         # ES_df['macd'], ES_df['macdsignal'], ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26,
         #                                                                signalperiod=9)
         # ES_df['macd - macdsignal'] = ES_df['macd'] - ES_df['macdsignal']
-        # ES_df['MA_9'] = ta.MA(ES_df['close'], timeperiod=9)
+        ES_df['MA_9'] = ta.MA(ES_df['close'], timeperiod=9)
         # ES_df['MA_21'] = ta.MA(ES_df['close'], timeperiod=21)
         # ES_df['MA_200'] = ta.MA(ES_df['close'], timeperiod=200)
-        # ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
-        # ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=26)
+        ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
+        ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=26)
         # ES_df['derv_1'] = np.gradient(ES_df['EMA_9'])
         # ES_df['EMA_9_26']=df['EMA_9']/df['EMA_26']
         # ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
@@ -398,7 +398,7 @@ class Trade:
         # if self.stock_owned.any > 0 and datetime.now().minute // 15 == 0:
         #     self.discount = self.discount + 0.0025
 
-        stop_loss = 2 + 1.75 + 0.25 * round((df["ATR"].iloc[i] ) / 0.25)  # set stop loss variable according to ATR
+        stop_loss = 2.75 + 0.25 * round((df["ATR"].iloc[i] ) / 0.25)  # set stop loss variable according to ATR
         self.ATR_factor = 0.25 * round((df["ATR"].iloc[i]) / 0.25) * 1.5
 
         print(
@@ -434,9 +434,8 @@ class Trade:
                   df["obv_slope"].iloc[i - 1] > 25 and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
                       i - 1]) or (df["bar_num"].iloc[i] >= 2 and
                                   df["obv_slope"].iloc[i] > 38)) and \
-                (df['B_upper'].iloc[i - 1] + 0.5 > df['close'].iloc[i - 1]) and \
-                df['RSI'].iloc[-2] < 90 and df['EMA_9-EMA_26'].iloc[
-            i - 1] > 0 and buy_index == [] and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
+                (df['B_upper'].iloc[i - 1] + 0.25 > df['close'].iloc[i]) and \
+                df['RSI'].iloc[-2] < 90 and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
             i - 1] and self.submitted == 0:
             print("Buy call")
             buy_index.append(0)
@@ -448,9 +447,8 @@ class Trade:
                   df["obv_slope"].iloc[i - 1] < -25 and df['volume'].iloc[i] >= 0.5 * df['roll_max_vol'].iloc[
                       i - 1]) or (df["bar_num"].iloc[i] <= -2 and
                                   df["obv_slope"].iloc[i] < -38)) and \
-                (df['B_lower'].iloc[i - 1] - 0.5 <= df['close'].iloc[i - 1]) and \
-                df['RSI'].iloc[i - 2] > 10 and df['EMA_9-EMA_26'].iloc[
-            i - 1] < 0 and buy_index == [] and self.submitted == 0:
+                (df['B_lower'].iloc[i - 1] - 0.25 <= df['close'].iloc[i]) and \
+                df['RSI'].iloc[i - 2] > 10 and buy_index == [] and self.submitted == 0:
             print("Buy put")
             buy_index.append(1)
             self.submitted = 1
@@ -526,7 +524,7 @@ class Trade:
         #     return buy_index, sell_index, take_profit
 
         elif self.stock_owned[0] > 0 and ((not np.isnan(self.call_option_price.bid)) and (
-                ((self.call_option_price.bid / self.call_cost) < 0.9)) and not
+                ((self.call_option_price.bid / self.call_cost) < 0.95)) and not
                                             (df["bar_num"].iloc[i - 1] >= 2 and df["obv_slope"].iloc[i - 1] > 25) and
                                             self.call_option_price.bid > self.call_option_price.modelGreeks.optPrice) and self.submitted == 0:
 
@@ -538,7 +536,7 @@ class Trade:
             return buy_index, sell_index, take_profit
 
         elif self.stock_owned[1] > 0 and ((not np.isnan(self.put_option_price.bid)) and (
-                ((self.put_option_price.bid / self.put_cost) < 0.9)) and not
+                ((self.put_option_price.bid / self.put_cost) < 0.95)) and not
                                             (df["bar_num"].iloc[i - 1] <= -2 and df["obv_slope"].iloc[i - 1] < -25) and
                                             self.put_option_price.bid > self.put_option_price.modelGreeks.optPrice) and self.submitted == 0:
             # conditions to sell puts to stop loss
