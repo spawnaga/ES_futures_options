@@ -614,7 +614,3 @@ if __name__ == '__main__':
             print(
                 f'Number of random trades = {agent.random_trades} from {len(data)} or {round(100 * agent.random_trades / len(data), 0)}% and Epsilon = {agent.epsilon} and final value={val}')
             break
-
-
-
-
