@@ -667,6 +667,7 @@ if __name__ == '__main__':
                 print("UNEXPECTED EXCEPTION")
                 print(error)
                 break
+<<<<<<< HEAD
             else:
                 agent.epsilon = 0.0001
                 t0 = datetime.now()
@@ -679,3 +680,13 @@ if __name__ == '__main__':
 
 
 
+=======
+        else:
+            agent.epsilon = 0.0001
+            t0 = datetime.now()
+            val = test_trade(agent, env)
+            dt = datetime.now() - t0
+            print(
+                f'Number of random trades = {agent.random_trades} from {len(data)} or {round(100 * agent.random_trades / len(data), 0)}% and Epsilon = {agent.epsilon} and final value={val}')
+            break
+>>>>>>> 220433779aa35f8c2a720856f9b5d2ec7ffb06f8
