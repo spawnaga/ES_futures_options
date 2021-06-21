@@ -10,6 +10,8 @@ import pandas as pd
 
 from tensorflow.keras.models import Model, load_model
 from tensorflow.keras.layers import Dense, Input, Dropout, LSTM, GlobalAveragePooling1D
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Dense,Dropout,LSTM,GlobalAveragePooling1D,Embedding
 from tensorflow.keras.optimizers import Adam
 import nest_asyncio
 from datetime import datetime, timedelta
@@ -20,6 +22,9 @@ import math
 from sklearn.preprocessing import StandardScaler
 from ressup import ressup
 import tensorflow as tf
+from stocktrends import Renko
+from ib_insync import *
+import statsmodels.api as sm
 
 gpus = tf.config.experimental.list_physical_devices('GPU')
 if gpus:
@@ -38,37 +43,102 @@ session = InteractiveSession(config=config)
 nest_asyncio.apply()
 
 
+
+
 def maybe_make_dir(directory):
     if not os.path.exists(directory):
         os.makedirs(directory)
 
 
-class get_data:
+def slope(ser, n):
+    "function to calculate the slope of n consecutive points on a plot"
+    slopes = [i * 0 for i in range(n - 1)]
+    for i in range(n, len(ser) + 1):
+        y = ser[i - n:i]
+        x = np.array(range(n))
+        y_scaled = (y - y.min()) / (y.max() - y.min())
+        x_scaled = (x - x.min()) / (x.max() - x.min())
+        x_scaled = sm.add_constant(x_scaled)
+        model = sm.OLS(y_scaled, x_scaled)
+        results = model.fit()
+        slopes.append(results.params[-1])
+    slope_angle = (np.rad2deg(np.arctan(np.array(slopes))))
+    return np.array(slope_angle)
 
-    def next_exp_weekday(self):
-        weekdays = {2: [5, 6, 0], 4: [0, 1, 2], 1: [3, 4]}
-        today = datetime.today().weekday()
+
+def renko_df(df_raw, ATR):
+    df_raw.reset_index(inplace=True)
+
+    renko = Renko(df_raw[['date', 'open', 'high', 'low', 'close', 'volume']])
+
+    renko.brick_size = ATR
+
+    df = renko.get_ohlc_data()
+    df['bar_num'] = np.where(df['uptrend'] == True, 1, np.where(df['uptrend'] == False, -1, 0))
+
+
+    for i in range(1, len(df["bar_num"])):
+        if df["bar_num"][i] > 0 and df["bar_num"][i - 1] > 0:
+            df["bar_num"][i] += df["bar_num"][i - 1]
+        elif df["bar_num"][i] < 0 and df["bar_num"][i - 1] < 0:
+            df["bar_num"][i] += df["bar_num"][i - 1]
+    df.drop_duplicates(subset="date", keep="last", inplace=True)
+    df_raw = df_raw.merge(df.loc[:, ["date", "bar_num"]], how="outer", on="date")
+    df_raw["bar_num"].fillna(method='ffill', inplace=True)
+    df_raw['OBV'] = ta.OBV(df_raw['close'], df_raw['volume'])
+    df_raw["obv_slope"] = slope(df_raw['OBV'], 5)
+    return df_raw
+
+class get_data:
+    """ A class to get ES Technical analysis and next 2 days expiration date and delta 60 option strikes for
+    whatever ES price at """
+
+    def __init__(self):
+        global trading
+        self.trading = Trade
+        self.trading.ATR_factor = 1
+
+    @staticmethod
+    def next_exp_weekday(x=None):
+        """ Set next expiration date for contract 0 = Monday, 1 = Tuesday, etc..."""
+        weekdays = {2: [5, 6, 0], 4: [0, 1, 2], 0: [3, 4]}
+        if not isinstance(x, type(None)):  # check if holiday day then skip to the next expiration day
+            today = (datetime.today() + timedelta(days=3)).weekday()
+        else:
+            today = datetime.today().weekday()
         for exp, day in weekdays.items():
             if today in day:
-                return exp
+                return exp  # return the 2nd next weekday number
 
-    def next_weekday(self, d, weekday):
-
+    @staticmethod
+    def next_weekday(d, weekday):
+        """ Translate weekdays number to a date for example next Mon = October 19th 2020"""
         days_ahead = weekday - d.weekday()
         if days_ahead <= 0:  # Target day already happened this week
             days_ahead += 7
-        date_to_return = d + timedelta(days_ahead)  # 0 = Monday, 1=Tuself.ESday, 2=Wednself.ESday...
-        return date_to_return.strftime('%Y%m%d')
+        date_to_return = d + timedelta(days_ahead)  # 0 = Monday, 1=Tus self.ES day, 2=Wed self.ES day...
+        return date_to_return.strftime('%Y%m%d')  # return the date in the form of (yearmonthday) ex:(20201019)
 
     def get_strikes_and_expiration(self):
-        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
+        """ When used, returns strikes and expiration for the ES futures options"""
+        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20210319', exchange='GLOBEX',
                     currency='USD')
         ib.qualifyContracts(ES)
         expiration = self.next_weekday(datetime.today(), self.next_exp_weekday())
-        chains = ib.reqSecDefOptParams(underlyingSymbol='ES', futFopExchange='GLOBEX', underlyingSecType='FUT',
-                                       underlyingConId=ES.conId)
+        try:
+            chains = ib.reqSecDefOptParams(underlyingSymbol='ES', futFopExchange='GLOBEX', underlyingSecType='FUT',
+                                           underlyingConId=ES.conId)
+        except ConnectionError:
+            ib.sleep(2)
+            main()
         chain = util.df(chains)
-        strikes = chain[chain['expirations'].astype(str).str.contains(expiration)].loc[:, 'strikes'].values[0]
+        try:
+            strikes = chain[chain['expirations'].astype(str).str.contains(expiration)].loc[:, 'strikes'].values[0]
+        except IndexError:
+            ib.sleep(1)
+            expiration = self.next_weekday(datetime.today() + timedelta(days=3),
+                                           self.next_exp_weekday(datetime.now() + timedelta(days=3)))
+            strikes = chain[chain['expirations'].astype(str).str.contains(expiration)].loc[:, 'strikes'].values[0]
         [ESValue] = ib.reqTickers(ES)
         ES_price = ESValue.marketPrice()
         strikes = [strike for strike in strikes
@@ -77,6 +147,7 @@ class get_data:
         return strikes, expiration
 
     def get_contract(self, right, net_liquidation):
+        """ Get contracts for ES futures options by using get_strikes_and_expiration function"""
         strikes, expiration = self.get_strikes_and_expiration()
         for strike in strikes:
             contract = FuturesOption(symbol='ES', lastTradeDateOrContractMonth=expiration,
@@ -88,48 +159,48 @@ class get_data:
             else:
                 return contract
 
-    def res_sup(self, ES_df):
-        ES_df = ES_df.reset_index(drop=True)
-        ressupDF = ressup(ES_df, len(ES_df))
-        res = ressupDF['Resistance'].values
-        sup = ressupDF['Support'].values
-        return res, sup
-
-    def ES(self):
-        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
-                    currency='USD')
-        ib.qualifyContracts(ES)
-        ES_df = ib.reqHistoricalData(contract=ES, endDateTime=endDateTime, durationStr=No_days,
-                                     barSizeSetting=interval, whatToShow='TRADES', useRTH=False)
-        ES_df = util.df(ES_df)
+    def ES(self, ES):
+        """ By have the dataframe of ES futures, this function will analyze and
+        provide technicals using TA-lib library"""
+        ES = ib.reqHistoricalData(contract=ES, endDateTime='', durationStr='2 D',
+                                  barSizeSetting='1 min', whatToShow='TRADES', useRTH=False, keepUpToDate=True,
+                                  timeout=10)
+        ES_df = util.df(ES)
         ES_df.set_index('date', inplace=True)
         ES_df.index = pd.to_datetime(ES_df.index)
-        ES_df['hours'] = ES_df.index.strftime('%H').astype(int)
-        ES_df['minutes'] = ES_df.index.strftime('%M').astype(int)
-        ES_df['hours + minutes'] = ES_df['hours'] * 100 + ES_df['minutes']
-        ES_df['Day_of_week'] = ES_df.index.dayofweek
-        ES_df['Resistance'], ES_df['Support'] = self.res_sup(ES_df)
-        ES_df['RSI'] = ta.RSI(ES_df['close'])
-        ES_df['macd'], ES_df['macdsignal'], ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=26,
+        # ES_df['hours'] = ES_df.index.strftime('%H').astype(int)
+        # ES_df['minutes'] = ES_df.index.strftime('%M').astype(int)
+        # ES_df['hours + minutes'] = ES_df['hours'] * 100 + ES_df['minutes']
+        # ES_df['Day_of_week'] = ES_df.index.dayofweek
+        ES_df['RSI'] = ta.RSI(ES_df['close'], timeperiod=5)
+        ES_df['macd'], ES_df['macdsignal'], ES_df['macdhist'] = ta.MACD(ES_df['close'], fastperiod=12, slowperiod=21,
                                                                         signalperiod=9)
         ES_df['macd - macdsignal'] = ES_df['macd'] - ES_df['macdsignal']
         ES_df['MA_9'] = ta.MA(ES_df['close'], timeperiod=9)
-        ES_df['MA_26'] = ta.MA(ES_df['close'], timeperiod=26)
+        ES_df['MA_21'] = ta.MA(ES_df['close'], timeperiod=21)
         ES_df['MA_200'] = ta.MA(ES_df['close'], timeperiod=200)
         ES_df['EMA_9'] = ta.EMA(ES_df['close'], timeperiod=9)
         ES_df['EMA_26'] = ta.EMA(ES_df['close'], timeperiod=26)
+        ES_df['derv_1'] = np.gradient(ES_df['EMA_9'])
+        ES_df['EMA_9_26']=ES_df['EMA_9']/ES_df['EMA_26']
         ES_df['EMA_50'] = ta.EMA(ES_df['close'], timeperiod=50)
         ES_df['EMA_200'] = ta.EMA(ES_df['close'], timeperiod=200)
-        ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'])
-        ES_df['roll_max_cp'] = ES_df['high'].rolling(20).max()
-        ES_df['roll_min_cp'] = ES_df['low'].rolling(20).min()
-        ES_df['roll_max_vol'] = ES_df['volume'].rolling(20).max()
+        ES_df['ATR'] = ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], timeperiod=20)
+        ES_df["ATR_roll_max"] = ES_df["ATR"].rolling(20).max()
+        ES_df['roll_max_cp'] = ES_df['high'].rolling(10).max()
+        ES_df['roll_min_cp'] = ES_df['low'].rolling(10).min()
+        ES_df['Mean_ATR'] = (ta.ATR(ES_df['high'], ES_df['low'], ES_df['close'], 21)).mean()
+        ES_df['roll_max_vol'] = ES_df['volume'].rolling(10).max()
         ES_df['vol/max_vol'] = ES_df['volume'] / ES_df['roll_max_vol']
         ES_df['EMA_9-EMA_26'] = ES_df['EMA_9'] - ES_df['EMA_26']
         ES_df['EMA_200-EMA_50'] = ES_df['EMA_200'] - ES_df['EMA_50']
-        ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], matype=MA_Type.T3)
-        ES_df.dropna(inplace=True)
+        ES_df['B_upper'], ES_df['B_middle'], ES_df['B_lower'] = ta.BBANDS(ES_df['close'], timeperiod=6, nbdevup=1,
+                                                                          nbdevdn=1, matype=MA_Type.T3)
+        ES_df["macd_slope"] = slope(ES_df["macd"], 5)
+        ES_df["macd_sig_slope"] = slope(ES_df["macdsignal"], 5)
 
+        ES_df.dropna(inplace=True)
+        ES_df = renko_df(ES_df, ES_df['ATR_roll_max'].iloc[-1])  # Get RENKO chart and obv slope
         return ES_df
 
     def option_history(self, contract):
@@ -176,29 +247,30 @@ def maybe_make_dir(directory):
         os.makedirs(directory)
 
 
-def mlp(input_dim, n_action, n_hidden_layers=1, hidden_dim=5):
+def mlp(input_dim, n_action, n_hidden_layers=3, hidden_dim=15):
     """ A multi-layer perceptron """
-
+     
     # input layer
-    i = Input(shape=(input_dim, 1))
+    i = Input(shape=(input_dim,1))
     x = i
-
+     
     # hidden layers
     for _ in range(n_hidden_layers):
-        # x = Dropout(0.2)(x)
-        # x = LSTM(hidden_dim, return_sequences = True)(x)
-        x = Dense(hidden_dim, activation='relu')(x)
-
+       x = Dropout(0.2)(x)
+       # x = LSTM(hidden_dim, return_sequences = True)(x)
+       x = Dense(hidden_dim, activation='relu')(x)
+     
     x = GlobalAveragePooling1D()(x)
     # final layer
     # x = Dense(n_action, activation='relu')(x)
     x = Dense(n_action, activation='softmax')(x)
     # make the model
     model = Model(i, x)
-
+     
     model.compile(loss='categorical_crossentropy', optimizer='adam')
     print((model.summary()))
     return model
+
 
 
 class ReplayBuffer:
@@ -316,18 +388,6 @@ class MultiStockEnv:
                 sell_index.append(i)
             elif a == 2:
                 buy_index.append(i)
-        # print(data_raw["low"].iloc[self.cur_step], data_raw["close"].iloc[self.cur_step-1], 0.75 * data_raw["ATR"].iloc[self.cur_step-1], data_raw["ATR"].iloc[self.cur_step-3], self.stock_owned[0], sell_index)
-        if data_raw["low"].iloc[self.cur_step] < data_raw["close"].iloc[self.cur_step - 1] - (
-        2 * data_raw["ATR"].iloc[self.cur_step - 1] if data_raw["ATR"].iloc[self.cur_step - 1] > data_raw["ATR"].iloc[
-            self.cur_step - 3] else data_raw["ATR"].iloc[self.cur_step - 3]) and self.stock_owned[
-            0] != 0 and sell_index == []:
-            sell_index.append(0)
-
-        elif data_raw["high"].iloc[self.cur_step] > data_raw["close"].iloc[self.cur_step - 1] + (
-        2 * data_raw["ATR"].iloc[self.cur_step - 1] if data_raw["ATR"].iloc[self.cur_step - 1] > data_raw["ATR"].iloc[
-            self.cur_step - 3] else data_raw["ATR"].iloc[self.cur_step - 3]) and self.stock_owned[
-            1] != 0 and sell_index == []:
-            sell_index.append(1)
         # sell any stocks we want to sellself.stock_owned[1]
         # then buy any stocks we want to buy
         if sell_index:
@@ -382,13 +442,14 @@ class DQNAgent(object):
     def __init__(self, state_size, action_size):
         self.state_size = state_size
         self.action_size = action_size
-        self.memory = ReplayBuffer(state_size, action_size, size=1500)
+        self.memory = ReplayBuffer(state_size, action_size, size=1024)
         self.gamma = 0.97  # discount rate
         # self.epsilon = 1 # exploration rate
         self.epsilon_min = 0.2
         self.epsilon_decay = 0.001
         self.model = mlp(state_size, action_size)
         self.random_trades = 0
+        self.k={}
 
     def update_replay_memory(self, state, action, reward, next_state, done):
         self.memory.store(state, action, reward, next_state, done)
@@ -431,7 +492,7 @@ class DQNAgent(object):
         target_full[np.arange(batch_size), actions] = target
 
         # Run one training step
-        self.model.train_on_batch(states, target_full)
+        self.model.train_on_batch(x=states, y=target_full, class_weight=self.k)
 
         if self.epsilon > self.epsilon_min:
             self.epsilon = self.epsilon_min + (self.epsilon) * \
@@ -510,28 +571,28 @@ if __name__ == '__main__':
     while True:
 
         succeded_trades = 0  # To count percentage of success
-        try:
-            from ib_insync import *
-            import talib as ta
-            from talib import MA_Type
+        # try:
+        from ib_insync import *
+        import talib as ta
+        from talib import MA_Type
 
-            ib = IB()
-            ib.connect('127.0.0.1', 7497, clientId=np.random.randint(10, 1000))
-            ES = Future(symbol='ES', lastTradeDateOrContractMonth='20201218', exchange='GLOBEX',
-                        currency='USD')
-            ib.qualifyContracts(ES)
-            endDateTime = ''
-            No_days = '3 D'
-            interval = '1 min'
-            data_raw = res.options(res.options(res.ES(), res.option_history(res.get_contract('C', 2000))) \
-                                   , res.option_history(
-                    res.get_contract('P', 2000)))  # collect live data of ES with TA and options prices
-            data_raw.to_csv('./new_data.csv')  # save data incase tws goes dowen
-        except:
-            data_raw = pd.read_csv('./new_data.csv', index_col='date')
+        ib = IB()
+        ib.connect('104.237.11.181', 7497, clientId=np.random.randint(10, 1000))
+        ES = Future(symbol='ES', lastTradeDateOrContractMonth='20210319', exchange='GLOBEX',
+                    currency='USD')
+        ib.qualifyContracts(ES)
+        endDateTime = ''
+        No_days = '2 D'
+        interval = '1 min'
+        data_raw = res.options(res.options(res.ES(ES), res.option_history(res.get_contract('C', 2000))) \
+                               , res.option_history(
+                res.get_contract('P', 2000)))  # collect live data of ES with TA and options prices
+        print(data_raw.columns)
+        data_raw.to_csv('./new_data.csv')  # save data incase tws goes dowen
+    # except:
+    #     data_raw = pd.read_csv('./new_data.csv', index_col='date')
 
-        data = data_raw[['hours + minutes', 'EMA_9-EMA_26', 'EMA_200-EMA_50', 'RSI', 'ATR', 'vol/max_vol', 'ES_C_close',
-                         'ES_P_close']]  # choose parameters to drop if not needed
+        data = data_raw  # choose parameters to drop if not needed
         n_stocks = 2
         train_data = data
         batch_size = 10
@@ -582,7 +643,7 @@ if __name__ == '__main__':
                     f.close()
 
                 # save portfolio value for each episode
-
+                print(f'model weights are {agent.model.weights}')
                 np.save(f'{rewards_folder}/reward.npy', np.array(portfolio_value))
                 np.save(f'{rewards_folder}/succeded_trades.npy', np.array(succeded_trades))
                 np.save(f'{rewards_folder}/succeded_trades.npy', np.array(agent.random_trades))
@@ -606,14 +667,14 @@ if __name__ == '__main__':
                 print("UNEXPECTED EXCEPTION")
                 print(error)
                 break
-        else:
-            agent.epsilon = 0.0001
-            t0 = datetime.now()
-            val = test_trade(agent, env)
-            dt = datetime.now() - t0
-            print(
-                f'Number of random trades = {agent.random_trades} from {len(data)} or {round(100 * agent.random_trades / len(data), 0)}% and Epsilon = {agent.epsilon} and final value={val}')
-            break
+            else:
+                agent.epsilon = 0.0001
+                t0 = datetime.now()
+                val = test_trade(agent, env)
+                dt = datetime.now() - t0
+                print(
+                    f'Number of random trades = {agent.random_trades} from {len(data)} or {round(100 * agent.random_trades / len(data), 0)}% and Epsilon = {agent.epsilon} and final value={val}')
+                break
 
 
 

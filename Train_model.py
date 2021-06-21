@@ -317,11 +317,11 @@ class MultiStockEnv:
         elif a == 2:
           buy_index.append(i)
       # print(data_raw["low"].iloc[self.cur_step], data_raw["close"].iloc[self.cur_step-1], 0.75 * data_raw["ATR"].iloc[self.cur_step-1], data_raw["ATR"].iloc[self.cur_step-3], self.stock_owned[0], sell_index)
-      if data_raw["low"].iloc[self.cur_step] < data_raw["close"].iloc[self.cur_step-1] - (2 * data_raw["ATR"].iloc[self.cur_step-1] if data_raw["ATR"].iloc[self.cur_step-1] > data_raw["ATR"].iloc[self.cur_step-3] else data_raw["ATR"].iloc[self.cur_step-3] ) and self.stock_owned[0] !=0 and sell_index==[]:
-          sell_index.append(0)
+      # if data_raw["low"].iloc[self.cur_step] < data_raw["close"].iloc[self.cur_step-1] - (2 * data_raw["ATR"].iloc[self.cur_step-1] if data_raw["ATR"].iloc[self.cur_step-1] > data_raw["ATR"].iloc[self.cur_step-3] else data_raw["ATR"].iloc[self.cur_step-3] ) and self.stock_owned[0] !=0 and sell_index==[]:
+      #     sell_index.append(0)
     
-      elif data_raw["high"].iloc[self.cur_step] >  data_raw["close"].iloc[self.cur_step-1] + (2 * data_raw["ATR"].iloc[self.cur_step-1] if data_raw["ATR"].iloc[self.cur_step-1] > data_raw["ATR"].iloc[self.cur_step-3] else data_raw["ATR"].iloc[self.cur_step-3] ) and self.stock_owned[1] !=0 and sell_index==[]:
-          sell_index.append(1)
+      # elif data_raw["high"].iloc[self.cur_step] >  data_raw["close"].iloc[self.cur_step-1] + (2 * data_raw["ATR"].iloc[self.cur_step-1] if data_raw["ATR"].iloc[self.cur_step-1] > data_raw["ATR"].iloc[self.cur_step-3] else data_raw["ATR"].iloc[self.cur_step-3] ) and self.stock_owned[1] !=0 and sell_index==[]:
+      #     sell_index.append(1)
       # sell any stocks we want to sellself.stock_owned[1]
       # then buy any stocks we want to buy
       if sell_index:
